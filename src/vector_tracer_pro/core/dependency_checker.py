@@ -497,6 +497,16 @@ class DependencyChecker:
                     download_url=_INKSCAPE_DOWNLOAD_URL,
                     details=combined[:300],
                 )
+            if result.returncode != 0:
+                return CheckResult(
+                    name="Inkscape",
+                    status=CheckStatus.ERROR,
+                    is_critical=True,
+                    message=f"Inkscape headless probe failed with exit code {result.returncode}.",
+                    detected_version=detected_version,
+                    detected_path=detected_path,
+                    details=combined[:300],
+                )
         except subprocess.TimeoutExpired:
             return CheckResult(
                 name="Inkscape",
@@ -698,6 +708,16 @@ class DependencyChecker:
                 text=True,
                 timeout=10,
             )
+            if proc.returncode != 0:
+                return CheckResult(
+                    name=name,
+                    status=CheckStatus.ERROR,
+                    is_critical=is_critical,
+                    message=f"{name} version check failed with exit code {proc.returncode}.",
+                    detected_path=resolved_path,
+                    download_url=download_url,
+                    details=(proc.stdout + proc.stderr)[:500],
+                )
             raw_output = proc.stdout + proc.stderr
         except subprocess.TimeoutExpired:
             return CheckResult(

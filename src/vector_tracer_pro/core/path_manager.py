@@ -117,6 +117,9 @@ class PathManager:
             temp_root if temp_root is not None else self._cache_dir / "temp"
         )
 
+        # Unique session ID for isolating temp folders between app instances
+        self._session_id: str = f"session_{uuid.uuid4().hex[:12]}"
+
         # RLock (re-entrant): the *same* thread can acquire the lock multiple
         # times without blocking.  This is necessary because ensure_all_dirs()
         # calls multiple accessor methods, each of which calls _ensure() and
@@ -135,6 +138,11 @@ class PathManager:
         not when you need the directory to actually exist.
         """
         return self._temp_root
+
+    @property
+    def session_id(self) -> str:
+        """Return the unique session ID string."""
+        return self._session_id
 
     @property
     def config_dir_path(self) -> Path:
@@ -183,7 +191,7 @@ class PathManager:
         return self._ensure(self._output_root / "Previews")
 
     def get_temp_dir(self) -> Path:
-        """Return the directory for intermediate temporary files.
+        """Return the session-isolated directory for intermediate temporary files.
 
         Intermediate files (BMP, PBM, temporary SVG) are written here
         and cleaned up by the pipeline after each trace completes.
@@ -191,9 +199,9 @@ class PathManager:
         Returns
         -------
         Path
-            Typically ``%LOCALAPPDATA%\\VectorTracerPro\\Cache\\temp``.
+            Typically ``%LOCALAPPDATA%\\VectorTracerPro\\Cache\\temp\\session_<uuid>``.
         """
-        return self._ensure(self._temp_root)
+        return self._ensure(self._temp_root / self._session_id)
 
     def get_logs_dir(self) -> Path:
         """Return the application log directory.
@@ -331,9 +339,8 @@ class PathManager:
         return True
 
     def cleanup_all_temp_files(self) -> int:
-        """Delete all *files* in the temp directory.
+        """Delete all *files* in the session temp directory, then delete the folder itself.
 
-        Sub-directories inside the temp directory are **not** removed.
         Individual deletion failures are logged at WARNING level and skipped
         so that a single locked file does not abort the entire cleanup.
 
@@ -344,6 +351,8 @@ class PathManager:
         """
         temp_dir = self.get_temp_dir()
         deleted = 0
+        if not temp_dir.is_dir():
+            return 0
         for entry in temp_dir.iterdir():
             if entry.is_file():
                 try:
@@ -352,7 +361,36 @@ class PathManager:
                     logger.debug("Deleted temp file: %s", entry)
                 except OSError as exc:
                     logger.warning("Could not delete temp file %s: %s", entry, exc)
-        logger.info("Cleaned up %d temp file(s) from %s.", deleted, temp_dir)
+        try:
+            temp_dir.rmdir()
+            logger.info("Deleted session temp directory: %s", temp_dir)
+        except OSError as exc:
+            logger.warning("Could not delete session temp directory %s: %s", temp_dir, exc)
+        return deleted
+
+    def cleanup_orphaned_sessions(self) -> int:
+        """Delete any other session directories from previous runs that were not cleaned up.
+
+        Searches for sub-directories in the temp root starting with ``"session_"``
+        (excluding the current session) and attempts to delete them and their contents.
+
+        Returns
+        -------
+        int
+            Number of orphaned sessions successfully deleted.
+        """
+        import shutil
+        deleted = 0
+        if not self._temp_root.is_dir():
+            return 0
+        for entry in self._temp_root.iterdir():
+            if entry.is_dir() and entry.name.startswith("session_") and entry.name != self._session_id:
+                try:
+                    shutil.rmtree(entry)
+                    deleted += 1
+                    logger.info("Deleted orphaned session directory: %s", entry)
+                except OSError as exc:
+                    logger.warning("Could not delete orphaned session directory %s: %s", entry, exc)
         return deleted
 
     # ------------------------------------------------------------------

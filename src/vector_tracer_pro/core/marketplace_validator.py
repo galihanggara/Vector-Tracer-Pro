@@ -342,14 +342,318 @@ class MarketplaceValidator:
 
         Raises
         ------
-        NotImplementedError
-            **Sprint 4 target** — not yet implemented.
         KeyError
             If *marketplace* is not a known profile.
         """
-        raise NotImplementedError(
-            "MarketplaceValidator.validate_svg() is a Sprint 4 deliverable."
-        )
+        spec = self.get_spec(marketplace)
+        issues: list[ValidationIssue] = []
+
+        # 1. File existence and size check (VERIFIED)
+        if not svg_path.is_file():
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="file_exists",
+                    message="SVG file does not exist.",
+                    status=RuleStatus.FAIL,
+                    marketplace=marketplace,
+                )
+            )
+            return ValidationResult(marketplace=marketplace, file_path=svg_path, issues=issues)
+
+        file_size_mb = svg_path.stat().st_size / (1024 * 1024)
+        if file_size_mb > spec.max_svg_size_mb:
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="file_size",
+                    message=f"SVG file size ({file_size_mb:.2f} MB) exceeds limit of {spec.max_svg_size_mb:.2f} MB.",
+                    status=RuleStatus.FAIL,
+                    marketplace=marketplace,
+                )
+            )
+        else:
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="file_size",
+                    message="SVG file size is within limits.",
+                    status=RuleStatus.PASS,
+                    marketplace=marketplace,
+                )
+            )
+
+        # 2. Well-formed SVG XML & Namespaces & Elements (VERIFIED & HEURISTIC)
+        from lxml import etree
+        try:
+            tree = etree.parse(str(svg_path))
+            root = tree.getroot()
+            
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="well_formed_xml",
+                    message="SVG is well-formed XML.",
+                    status=RuleStatus.PASS,
+                    marketplace=marketplace,
+                )
+            )
+
+            # Namespace check (VERIFIED)
+            svg_ns = "http://www.w3.org/2000/svg"
+            if root.tag != f"{{{svg_ns}}}svg" and root.tag != "svg":
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.VERIFIED,
+                        rule_id="svg_namespace",
+                        message=f"Invalid root tag namespace. Expected {{{svg_ns}}}svg, got {root.tag}.",
+                        status=RuleStatus.FAIL,
+                        marketplace=marketplace,
+                    )
+                )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.VERIFIED,
+                        rule_id="svg_namespace",
+                        message="Valid SVG namespace confirmed.",
+                        status=RuleStatus.PASS,
+                        marketplace=marketplace,
+                    )
+                )
+
+            # Embedded raster check (VERIFIED)
+            images = root.xpath("//svg:image", namespaces={"svg": svg_ns}) or root.xpath("//image")
+            raster_found = False
+            for img in images:
+                href = img.get("href") or img.get("{http://www.w3.org/1999/xlink}href")
+                if href:
+                    href_str = str(href).lower().strip()
+                    if (
+                        href_str.startswith("data:image/png")
+                        or href_str.startswith("data:image/jpeg")
+                        or href_str.startswith("data:image/jpg")
+                    ):
+                        raster_found = True
+                        break
+                    ext = Path(href_str).suffix
+                    if ext in (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"):
+                        raster_found = True
+                        break
+            
+            if raster_found or images:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.VERIFIED,
+                        rule_id="no_embedded_rasters",
+                        message="Embedded raster images found in SVG.",
+                        status=RuleStatus.FAIL,
+                        marketplace=marketplace,
+                    )
+                )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.VERIFIED,
+                        rule_id="no_embedded_rasters",
+                        message="No embedded raster images found.",
+                        status=RuleStatus.PASS,
+                        marketplace=marketplace,
+                    )
+                )
+
+            # --- Heuristics ---
+
+            # Path count (HEURISTIC)
+            paths = (
+                root.xpath("//svg:path", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:rect", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:circle", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:ellipse", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:line", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:polyline", namespaces={"svg": svg_ns})
+                + root.xpath("//svg:polygon", namespaces={"svg": svg_ns})
+            ) or (
+                root.xpath("//path")
+                + root.xpath("//rect")
+                + root.xpath("//circle")
+                + root.xpath("//ellipse")
+                + root.xpath("//line")
+                + root.xpath("//polyline")
+                + root.xpath("//polygon")
+            )
+            path_count = len(paths)
+            if path_count < spec.recommended_min_paths:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="path_count",
+                        message=f"Path count ({path_count}) is below recommendation of {spec.recommended_min_paths}+ paths.",
+                        status=RuleStatus.WARN,
+                        marketplace=marketplace,
+                    )
+                )
+            elif path_count > spec.recommended_max_paths:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="path_count",
+                        message=f"Path count ({path_count}) exceeds recommended maximum of {spec.recommended_max_paths} paths.",
+                        status=RuleStatus.WARN,
+                        marketplace=marketplace,
+                    )
+                )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="path_count",
+                        message=f"Path count ({path_count}) is within recommended range.",
+                        status=RuleStatus.PASS,
+                        marketplace=marketplace,
+                    )
+                )
+
+            # Colors count (HEURISTIC)
+            colors: set[str] = set()
+            for elem in root.xpath("//*"):
+                fill = elem.get("fill")
+                if fill and fill.lower() not in ("none", "inherit", "transparent"):
+                    colors.add(fill.strip().lower())
+                stroke = elem.get("stroke")
+                if stroke and stroke.lower() not in ("none", "inherit", "transparent"):
+                    colors.add(stroke.strip().lower())
+            
+            color_count = len(colors)
+            if color_count > spec.recommended_max_colours:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="colour_count",
+                        message=f"Distinct color count ({color_count}) exceeds recommended maximum of {spec.recommended_max_colours} colors.",
+                        status=RuleStatus.WARN,
+                        marketplace=marketplace,
+                    )
+                )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="colour_count",
+                        message=f"Color count ({color_count}) is within recommended range.",
+                        status=RuleStatus.PASS,
+                        marketplace=marketplace,
+                    )
+                )
+
+            # Thin strokes check (HEURISTIC)
+            thin_strokes_found = 0
+            for elem in root.xpath("//*[@stroke-width]"):
+                sw_str = elem.get("stroke-width")
+                try:
+                    sw_clean = "".join(c for c in sw_str if c.isdigit() or c in (".", ","))
+                    sw_val = float(sw_clean)
+                    if sw_val < spec.min_stroke_width_px:
+                        thin_strokes_found += 1
+                except ValueError:
+                    pass
+            if thin_strokes_found > 0:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="stroke_width",
+                        message=f"Found {thin_strokes_found} stroke(s) thinner than {spec.min_stroke_width_px} px.",
+                        status=RuleStatus.WARN,
+                        marketplace=marketplace,
+                    )
+                )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="stroke_width",
+                        message="No thin strokes found.",
+                        status=RuleStatus.PASS,
+                        marketplace=marketplace,
+                    )
+                )
+
+            # ViewBox matches artboard (HEURISTIC)
+            w_str = root.get("width")
+            h_str = root.get("height")
+            vb_str = root.get("viewBox")
+            
+            if w_str and h_str and vb_str:
+                try:
+                    w_val = float("".join(c for c in w_str if c.isdigit() or c in (".", ",")))
+                    h_val = float("".join(c for c in h_str if c.isdigit() or c in (".", ",")))
+                    vb_parts = [float(p) for p in vb_str.replace(",", " ").split() if p]
+                    if len(vb_parts) == 4:
+                        vb_w = vb_parts[2]
+                        vb_h = vb_parts[3]
+                        if abs(w_val - vb_w) > 1.0 or abs(h_val - vb_h) > 1.0:
+                            issues.append(
+                                ValidationIssue(
+                                    tier=ValidationTier.HEURISTIC,
+                                    rule_id="viewbox_artboard",
+                                    message=f"Artboard dimensions ({w_val}x{h_val}) do not match viewbox dimensions ({vb_w}x{vb_h}).",
+                                    status=RuleStatus.WARN,
+                                    marketplace=marketplace,
+                                )
+                            )
+                        else:
+                            issues.append(
+                                ValidationIssue(
+                                    tier=ValidationTier.HEURISTIC,
+                                    rule_id="viewbox_artboard",
+                                    message="Artboard matches viewbox.",
+                                    status=RuleStatus.PASS,
+                                    marketplace=marketplace,
+                                )
+                            )
+                    else:
+                        issues.append(
+                            ValidationIssue(
+                                tier=ValidationTier.HEURISTIC,
+                                rule_id="viewbox_artboard",
+                                message="Invalid viewbox attribute structure.",
+                                status=RuleStatus.WARN,
+                                marketplace=marketplace,
+                            )
+                        )
+                except ValueError:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.HEURISTIC,
+                            rule_id="viewbox_artboard",
+                            message="Could not parse dimensions to verify viewbox matching.",
+                            status=RuleStatus.WARN,
+                            marketplace=marketplace,
+                        )
+                    )
+            else:
+                issues.append(
+                    ValidationIssue(
+                        tier=ValidationTier.HEURISTIC,
+                        rule_id="viewbox_artboard",
+                        message="Missing width, height, or viewBox attributes to verify alignment.",
+                        status=RuleStatus.WARN,
+                        marketplace=marketplace,
+                    )
+                )
+
+        except etree.XMLSyntaxError as exc:
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="well_formed_xml",
+                    message=f"Invalid XML syntax: {exc}",
+                    status=RuleStatus.FAIL,
+                    marketplace=marketplace,
+                )
+            )
+
+        return ValidationResult(marketplace=marketplace, file_path=svg_path, issues=issues)
 
     def validate_preview(
         self,
@@ -369,15 +673,104 @@ class MarketplaceValidator:
         -------
         ValidationResult
             Aggregated result with dimension and file-size checks.
-
-        Raises
-        ------
-        NotImplementedError
-            **Sprint 4 target** — not yet implemented.
         """
-        raise NotImplementedError(
-            "MarketplaceValidator.validate_preview() is a Sprint 4 deliverable."
-        )
+        spec = self.get_spec(marketplace)
+        issues: list[ValidationIssue] = []
+
+        if not jpg_path.is_file():
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="file_exists",
+                    message="Preview file does not exist.",
+                    status=RuleStatus.FAIL,
+                    marketplace=marketplace,
+                )
+            )
+            return ValidationResult(marketplace=marketplace, file_path=jpg_path, issues=issues)
+
+        from PIL import Image
+        try:
+            with Image.open(jpg_path) as img:
+                w, h = img.size
+                
+                if img.format != "JPEG":
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_format",
+                            message=f"Invalid preview format: {img.format}. Expected JPEG.",
+                            status=RuleStatus.FAIL,
+                            marketplace=marketplace,
+                        )
+                    )
+                else:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_format",
+                            message="Valid JPEG format confirmed.",
+                            status=RuleStatus.PASS,
+                            marketplace=marketplace,
+                        )
+                    )
+
+                # Width check (VERIFIED)
+                if w < spec.min_preview_width_px:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_width",
+                            message=f"Preview width ({w} px) is below minimum of {spec.min_preview_width_px} px.",
+                            status=RuleStatus.FAIL,
+                            marketplace=marketplace,
+                        )
+                    )
+                else:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_width",
+                            message="Preview width is compliant.",
+                            status=RuleStatus.PASS,
+                            marketplace=marketplace,
+                        )
+                    )
+
+                # Height check (VERIFIED)
+                if h < spec.min_preview_height_px:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_height",
+                            message=f"Preview height ({h} px) is below minimum of {spec.min_preview_height_px} px.",
+                            status=RuleStatus.FAIL,
+                            marketplace=marketplace,
+                        )
+                    )
+                else:
+                    issues.append(
+                        ValidationIssue(
+                            tier=ValidationTier.VERIFIED,
+                            rule_id="preview_height",
+                            message="Preview height is compliant.",
+                            status=RuleStatus.PASS,
+                            marketplace=marketplace,
+                        )
+                    )
+
+        except Exception as exc:
+            issues.append(
+                ValidationIssue(
+                    tier=ValidationTier.VERIFIED,
+                    rule_id="preview_parse",
+                    message=f"Failed to open or parse preview image: {exc}",
+                    status=RuleStatus.FAIL,
+                    marketplace=marketplace,
+                )
+            )
+
+        return ValidationResult(marketplace=marketplace, file_path=jpg_path, issues=issues)
 
     def get_spec(self, marketplace: str) -> MarketplaceSpec:
         """Return the :class:`MarketplaceSpec` for *marketplace*.

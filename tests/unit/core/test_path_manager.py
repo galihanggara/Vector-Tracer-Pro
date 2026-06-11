@@ -54,6 +54,17 @@ class TestPathManagerConstruction:
         pm = PathManager(temp_root=custom)
         assert pm._temp_root == custom  # noqa: SLF001
 
+    def test_session_id_exists(self) -> None:
+        pm = PathManager()
+        assert pm.session_id.startswith("session_")
+        assert len(pm.session_id) > 12
+
+    def test_session_isolation(self) -> None:
+        pm1 = PathManager()
+        pm2 = PathManager()
+        assert pm1.session_id != pm2.session_id
+        assert pm1.get_temp_dir() != pm2.get_temp_dir()
+
 
 # ===========================================================================
 # Directory accessors — existence
@@ -242,19 +253,35 @@ class TestCleanupAPI:
         p1.write_bytes(b"data1")
         p2.write_bytes(b"data2")
         
-        # Create a subdirectory to ensure it's not removed
-        subdir = pm.get_temp_dir() / "subdir"
-        subdir.mkdir(exist_ok=True)
-        
+        temp_dir = pm.get_temp_dir()
         assert p1.is_file()
         assert p2.is_file()
-        assert subdir.is_dir()
+        assert temp_dir.is_dir()
         
         deleted_count = pm.cleanup_all_temp_files()
         assert deleted_count == 2
         assert not p1.exists()
         assert not p2.exists()
-        assert subdir.exists()
+        assert not temp_dir.exists()
+
+    def test_cleanup_orphaned_sessions(self, pm: PathManager) -> None:
+        # Create an orphaned session folder in the same temp root
+        orphaned_dir = pm._temp_root / "session_999999999999"
+        orphaned_dir.mkdir(parents=True, exist_ok=True)
+        orphaned_file = orphaned_dir / "old_temp.bmp"
+        orphaned_file.write_bytes(b"old")
+        
+        assert orphaned_dir.is_dir()
+        assert orphaned_file.is_file()
+        
+        # Run cleanup
+        orphaned_deleted = pm.cleanup_orphaned_sessions()
+        assert orphaned_deleted == 1
+        assert not orphaned_dir.exists()
+        assert not orphaned_file.exists()
+        
+        # Current session should remain untouched
+        assert pm.get_temp_dir().is_dir()
 
 
 # ===========================================================================
