@@ -225,7 +225,7 @@ class TestCheckAllIntegration:
         )
         report = checker.check_all()
         assert isinstance(report, ValidationReport)
-        assert len(report.all_checks) == 5
+        assert len(report.all_checks) == 6
 
     def test_summary_is_non_empty_string(self, tmp_path: object) -> None:
         from pathlib import Path

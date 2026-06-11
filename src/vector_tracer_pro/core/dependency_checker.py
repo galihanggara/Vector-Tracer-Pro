@@ -10,10 +10,12 @@ Checks performed
 2. **Potrace** — must be on PATH, version >= 1.16 (critical)
 3. **Inkscape** — must be on PATH, version >= 1.0, ``--actions`` flag
    must be supported for headless multi-colour tracing (critical)
-4. **Write permissions** — application output, temp, config, and log
-   directories must be writable (critical)
-5. **Disk space** — at least ``min_disk_space_mb`` free on the output
-   drive (non-critical — advisory warning only)
+4. **VTracer** — optional colour-vectoriser; advisory if absent (non-critical)
+5. **Write permissions** — application output, temp, config, and log
+   directories must be writable, verified by an **actual probe-file write**
+   rather than ``os.access()`` (critical)
+6. **Disk space** — at least ``min_disk_space_mb`` free on the **output
+   drive** (defaults to the drive reported by PathManager; non-critical)
 
 All results are returned as immutable :class:`CheckResult` and
 :class:`ValidationReport` dataclasses, making them safe to pass between
@@ -40,12 +42,12 @@ Usage
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+import uuid
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Sequence
@@ -65,6 +67,11 @@ _MIN_PYTHON: tuple[int, int] = (3, 12)
 # Minimum free disk space recommended for safe operation (MB)
 _DEFAULT_MIN_DISK_MB: float = 500.0
 
+# VTracer — optional vectoriser
+_VTRACER_EXECUTABLE: str = "vtracer"
+_VTRACER_MINIMUM_VERSION: str = "0.6.0"
+_VTRACER_DOWNLOAD_URL: str = "https://github.com/visioncortex/vtracer/releases"
+
 # Download URLs shown to users in error messages
 _POTRACE_DOWNLOAD_URL: str = "http://potrace.sourceforge.net/#downloading"
 _INKSCAPE_DOWNLOAD_URL: str = "https://inkscape.org/release/"
@@ -72,6 +79,9 @@ _PYTHON_DOWNLOAD_URL: str = "https://www.python.org/downloads/"
 
 # Regex that extracts the first X.Y or X.Y.Z version string from any text
 _VERSION_RE: re.Pattern[str] = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+
+# Probe filename prefix written during the write-permission check
+_PROBE_PREFIX: str = ".vtp_write_probe_"
 
 
 # ===========================================================================
@@ -151,10 +161,13 @@ class ValidationReport:
         Result of the Potrace binary check.
     inkscape_check:
         Result of the Inkscape binary check.
+    vtracer_check:
+        Result of the VTracer binary check (optional, non-critical).
+        ``None`` if the check was not performed.
     write_permissions_check:
-        Result of the filesystem write-permission check.
+        Result of the filesystem write-permission check (probe-file write).
     disk_space_check:
-        Result of the available disk-space check (advisory).
+        Result of the available disk-space check on the output drive (advisory).
     """
 
     python_check: CheckResult
@@ -162,6 +175,7 @@ class ValidationReport:
     inkscape_check: CheckResult
     write_permissions_check: CheckResult
     disk_space_check: CheckResult
+    vtracer_check: CheckResult | None = None  # optional — None if not performed
 
     # ------------------------------------------------------------------
     # Computed views
@@ -169,14 +183,17 @@ class ValidationReport:
 
     @property
     def all_checks(self) -> list[CheckResult]:
-        """All checks in deterministic order."""
-        return [
+        """All performed checks in deterministic order."""
+        checks = [
             self.python_check,
             self.potrace_check,
             self.inkscape_check,
             self.write_permissions_check,
             self.disk_space_check,
         ]
+        if self.vtracer_check is not None:
+            checks.append(self.vtracer_check)
+        return checks
 
     @property
     def critical_checks(self) -> list[CheckResult]:
@@ -208,13 +225,10 @@ class ValidationReport:
     def summary(self) -> str:
         """Return a multi-line human-readable summary of all checks.
 
-        Suitable for logging or display in the UI's dependency-check
-        dialog.
-
         Returns
         -------
         str
-            Formatted report text.
+            Formatted report text suitable for logging or UI display.
         """
         sep = "=" * 48
         lines: list[str] = [
@@ -244,11 +258,6 @@ class ValidationReport:
 
 def _parse_version(text: str) -> str | None:
     """Extract the first semantic version string from *text*.
-
-    Parameters
-    ----------
-    text:
-        Raw text output from a binary's ``--version`` flag.
 
     Returns
     -------
@@ -284,16 +293,23 @@ class DependencyChecker:
     Parameters
     ----------
     potrace_executable:
-        Name or path of the Potrace binary.  Defaults to ``"potrace"``
-        (resolved via ``shutil.which`` / PATH).
+        Name or path of the Potrace binary.
     inkscape_executable:
-        Name or path of the Inkscape binary.  Defaults to ``"inkscape"``.
+        Name or path of the Inkscape binary.
+    vtracer_executable:
+        Name or path of the VTracer binary.  VTracer is optional; its
+        absence generates an advisory warning, not a blocking error.
     write_check_paths:
-        Directories that must be writable.  If ``None``, a default set of
-        application-critical directories is used.
+        Directories that must be writable.  Write access is verified by
+        creating and immediately deleting a small probe file (not by
+        ``os.access()`` which can be incorrect on Windows with ACLs).
     min_disk_space_mb:
         Minimum free disk space in megabytes (advisory, non-critical).
-        Defaults to 500 MB.
+    disk_check_path:
+        Path used to determine which drive to check for free space.
+        Typically the output root so the check reflects the actual
+        destination drive (not necessarily the system drive).
+        Defaults to ``Path.home()`` if ``None``.
 
     Examples
     --------
@@ -307,13 +323,17 @@ class DependencyChecker:
         *,
         potrace_executable: str = POTRACE_EXECUTABLE,
         inkscape_executable: str = INKSCAPE_EXECUTABLE,
+        vtracer_executable: str = _VTRACER_EXECUTABLE,
         write_check_paths: Sequence[Path] | None = None,
         min_disk_space_mb: float = _DEFAULT_MIN_DISK_MB,
+        disk_check_path: Path | None = None,
     ) -> None:
         self._potrace_exe: str = potrace_executable
         self._inkscape_exe: str = inkscape_executable
+        self._vtracer_exe: str = vtracer_executable
         self._write_check_paths: Sequence[Path] = write_check_paths or []
         self._min_disk_space_mb: float = min_disk_space_mb
+        self._disk_check_path: Path = disk_check_path or Path.home()
 
     # ------------------------------------------------------------------
     # Factory
@@ -323,6 +343,9 @@ class DependencyChecker:
     def from_path_manager(cls, path_manager: object) -> "DependencyChecker":
         """Create a checker pre-configured with paths from a PathManager.
 
+        Uses only the public API of :class:`PathManager` — no private
+        attribute access (``_output_root``, ``_config_dir``, etc.).
+
         Parameters
         ----------
         path_manager:
@@ -331,20 +354,24 @@ class DependencyChecker:
         Returns
         -------
         DependencyChecker
-            Configured checker that verifies write access to all standard
-            application directories.
+            Checker configured to verify write access to all standard
+            application directories and disk space on the output drive.
         """
-        # Import here to avoid circular import at module level
         from vector_tracer_pro.core.path_manager import PathManager  # noqa: PLC0415
 
         pm: PathManager = path_manager  # type: ignore[assignment]
-        paths: list[Path] = [
-            pm._output_root,   # noqa: SLF001
-            pm._temp_root,     # noqa: SLF001
-            pm._config_dir,    # noqa: SLF001
-            pm._log_dir,       # noqa: SLF001
+
+        # Use public API — no access to private attributes
+        write_paths: list[Path] = [
+            pm.get_output_root(),   # public method
+            pm.temp_root,           # public property
+            pm.config_dir_path,     # public property
+            pm.log_dir_path,        # public property
         ]
-        return cls(write_check_paths=paths)
+        return cls(
+            write_check_paths=write_paths,
+            disk_check_path=pm.get_output_root(),  # check the output drive
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -368,6 +395,7 @@ class DependencyChecker:
             inkscape_check=self._check_inkscape(),
             write_permissions_check=self._check_write_permissions(),
             disk_space_check=self._check_disk_space(),
+            vtracer_check=self._check_vtracer(),
         )
         logger.info(report.summary())
         return report
@@ -414,14 +442,15 @@ class DependencyChecker:
             minimum_version=POTRACE_MINIMUM_VERSION,
             download_url=_POTRACE_DOWNLOAD_URL,
             version_args=["--version"],
+            is_critical=True,
         )
 
     def _check_inkscape(self) -> CheckResult:
         """Verify Inkscape is installed, meets version, and supports headless.
 
-        In addition to the version check performed by :meth:`_check_binary`,
-        this method verifies that Inkscape's ``--actions`` flag is recognised,
-        which is required for headless multi-colour tracing (Inkscape 1.x+).
+        In addition to the version check, verifies that ``--actions`` is
+        recognised (Inkscape 1.x headless API required for multi-colour
+        tracing).
         """
         binary_result = self._check_binary(
             name="Inkscape",
@@ -429,19 +458,22 @@ class DependencyChecker:
             minimum_version=INKSCAPE_MINIMUM_VERSION,
             download_url=_INKSCAPE_DOWNLOAD_URL,
             version_args=["--version"],
+            is_critical=True,
         )
 
         if not binary_result.passed:
             return binary_result
 
-        # Additional: verify --actions headless flag
-        headless_result = self._check_inkscape_headless()
-        if not headless_result.passed:
-            return headless_result
+        return self._check_inkscape_headless(
+            detected_version=binary_result.detected_version,
+            detected_path=binary_result.detected_path,
+        )
 
-        return binary_result
-
-    def _check_inkscape_headless(self) -> CheckResult:
+    def _check_inkscape_headless(
+        self,
+        detected_version: str | None = None,
+        detected_path: str | None = None,
+    ) -> CheckResult:
         """Probe Inkscape's ``--actions`` flag for headless CLI support."""
         try:
             result = subprocess.run(
@@ -451,43 +483,71 @@ class DependencyChecker:
                 timeout=15,
             )
             combined = (result.stdout + result.stderr).lower()
-            # Inkscape 1.x exits cleanly; 0.9x prints "unrecognized option"
             if "unrecognized" in combined or "invalid" in combined:
                 return CheckResult(
-                    name="Inkscape (headless)",
+                    name="Inkscape",
                     status=CheckStatus.VERSION_TOO_OLD,
                     is_critical=True,
                     message=(
                         "Inkscape --actions flag not supported. "
                         "Inkscape >= 1.0 required for multi-colour tracing."
                     ),
+                    detected_version=detected_version,
+                    detected_path=detected_path,
                     download_url=_INKSCAPE_DOWNLOAD_URL,
                     details=combined[:300],
                 )
         except subprocess.TimeoutExpired:
             return CheckResult(
-                name="Inkscape (headless)",
+                name="Inkscape",
                 status=CheckStatus.ERROR,
                 is_critical=True,
                 message="Inkscape headless probe timed out.",
+                detected_version=detected_version,
+                detected_path=detected_path,
             )
         except OSError as exc:
             return CheckResult(
-                name="Inkscape (headless)",
+                name="Inkscape",
                 status=CheckStatus.ERROR,
                 is_critical=True,
                 message=f"Inkscape headless probe failed: {exc}",
+                detected_version=detected_version,
+                detected_path=detected_path,
             )
 
         return CheckResult(
-            name="Inkscape (headless)",
+            name="Inkscape",
             status=CheckStatus.OK,
             is_critical=True,
-            message="Inkscape --actions flag is supported.",
+            message="Inkscape headless --actions flag is supported.",
+            detected_version=detected_version,
+            detected_path=detected_path,
+        )
+
+    def _check_vtracer(self) -> CheckResult:
+        """Check for VTracer — optional colour vectoriser (non-critical).
+
+        VTracer is an alternative to Inkscape for colour tracing.  Its
+        absence generates an advisory warning but does not block the
+        application from running.
+        """
+        return self._check_binary(
+            name="VTracer",
+            executable=self._vtracer_exe,
+            minimum_version=_VTRACER_MINIMUM_VERSION,
+            download_url=_VTRACER_DOWNLOAD_URL,
+            version_args=["--version"],
+            is_critical=False,  # advisory — app works without VTracer
         )
 
     def _check_write_permissions(self) -> CheckResult:
-        """Verify write access to all required application directories."""
+        """Verify write access to all required application directories.
+
+        Uses an **actual probe-file write** (create + delete a small file)
+        rather than ``os.access()`` which can be unreliable on Windows with
+        Access Control Lists (ACLs).
+        """
         if not self._write_check_paths:
             return CheckResult(
                 name="Write Permissions",
@@ -498,12 +558,19 @@ class DependencyChecker:
 
         failed: list[str] = []
         for path in self._write_check_paths:
+            # Step 1: create directory
             try:
                 path.mkdir(parents=True, exist_ok=True)
             except OSError:
                 failed.append(str(path))
                 continue
-            if not os.access(path, os.W_OK):
+
+            # Step 2: attempt actual file write + delete
+            probe = path / f"{_PROBE_PREFIX}{uuid.uuid4().hex[:8]}"
+            try:
+                probe.write_bytes(b"vtp")
+                probe.unlink()
+            except OSError:
                 failed.append(str(path))
 
         if failed:
@@ -511,7 +578,7 @@ class DependencyChecker:
                 name="Write Permissions",
                 status=CheckStatus.PERMISSION_DENIED,
                 is_critical=True,
-                message=f"No write access to {len(failed)} director(y/ies).",
+                message=f"Cannot write to {len(failed)} director(y/ies).",
                 details="\n".join(failed),
             )
 
@@ -521,19 +588,20 @@ class DependencyChecker:
             is_critical=True,
             message=(
                 f"Write access confirmed for {len(self._write_check_paths)} "
-                "director(y/ies)."
+                "director(y/ies) (probe write verified)."
             ),
         )
 
     def _check_disk_space(self) -> CheckResult:
-        """Check available disk space on the home / output drive.
+        """Check available disk space on the **output drive**.
 
-        This check is **non-critical** (advisory only).  A warning is emitted
-        if free space drops below :attr:`_min_disk_space_mb`, but the
-        application will still be marked as ready.
+        The check uses :attr:`_disk_check_path` (typically the output root)
+        so that the reported free space reflects the actual destination
+        drive rather than always checking the system drive.
+
+        This check is **non-critical** (advisory only).
         """
-        # Use the user's home directory as the reference drive
-        check_path = Path.home()
+        check_path = self._disk_check_path
         try:
             usage = shutil.disk_usage(check_path)
         except OSError as exc:
@@ -541,23 +609,24 @@ class DependencyChecker:
                 name="Disk Space",
                 status=CheckStatus.ERROR,
                 is_critical=False,
-                message=f"Could not query disk usage: {exc}",
+                message=f"Could not query disk usage for {check_path}: {exc}",
             )
 
         free_mb = usage.free / (1024 * 1024)
         total_mb = usage.total / (1024 * 1024)
+        drive = Path(check_path.anchor) if check_path.anchor else check_path
 
         if free_mb < self._min_disk_space_mb:
             return CheckResult(
                 name="Disk Space",
                 status=CheckStatus.INSUFFICIENT_DISK,
-                is_critical=False,  # advisory only
+                is_critical=False,
                 message=(
-                    f"Only {free_mb:,.0f} MB free on {check_path.anchor}; "
+                    f"Only {free_mb:,.0f} MB free on {drive}; "
                     f"{self._min_disk_space_mb:,.0f} MB recommended."
                 ),
                 details=(
-                    f"Drive: {check_path.anchor}  "
+                    f"Drive: {drive}  "
                     f"Free: {free_mb:,.0f} MB / Total: {total_mb:,.0f} MB"
                 ),
             )
@@ -567,7 +636,7 @@ class DependencyChecker:
             status=CheckStatus.OK,
             is_critical=False,
             message=(
-                f"{free_mb:,.0f} MB free on {check_path.anchor} "
+                f"{free_mb:,.0f} MB free on {drive} "
                 f"(>= {self._min_disk_space_mb:,.0f} MB recommended)."
             ),
         )
@@ -581,25 +650,29 @@ class DependencyChecker:
         *,
         name: str,
         executable: str,
-        minimum_version: str,
+        minimum_version: str | None,
         download_url: str,
         version_args: list[str],
+        is_critical: bool = True,
     ) -> CheckResult:
         """Generic binary existence + version check.
 
         Parameters
         ----------
         name:
-            Human-readable name for the binary (used in ``CheckResult.name``).
+            Human-readable name (used in ``CheckResult.name``).
         executable:
             Binary name or path to look up via ``shutil.which``.
         minimum_version:
-            Minimum acceptable version string (``"X.Y.Z"``).
+            Minimum acceptable version string ``"X.Y.Z"``.
+            ``None`` means any detected version is accepted.
         download_url:
             URL shown to the user if the binary is missing or outdated.
         version_args:
-            Command-line arguments to pass for version output (e.g.
-            ``["--version"]``).
+            Command-line arguments to pass for version output.
+        is_critical:
+            Whether a failing check blocks the application.
+            ``False`` produces an advisory warning only.
 
         Returns
         -------
@@ -611,7 +684,7 @@ class DependencyChecker:
             return CheckResult(
                 name=name,
                 status=CheckStatus.MISSING,
-                is_critical=True,
+                is_critical=is_critical,
                 message=f"{name} not found on PATH.",
                 minimum_version=minimum_version,
                 download_url=download_url,
@@ -630,7 +703,7 @@ class DependencyChecker:
             return CheckResult(
                 name=name,
                 status=CheckStatus.ERROR,
-                is_critical=True,
+                is_critical=is_critical,
                 message=f"{name} version check timed out (> 10 s).",
                 detected_path=resolved_path,
                 download_url=download_url,
@@ -639,7 +712,7 @@ class DependencyChecker:
             return CheckResult(
                 name=name,
                 status=CheckStatus.ERROR,
-                is_critical=True,
+                is_critical=is_critical,
                 message=f"Failed to run {name}: {exc}",
                 detected_path=resolved_path,
                 download_url=download_url,
@@ -648,22 +721,34 @@ class DependencyChecker:
         # 3. Parse version
         detected_version = _parse_version(raw_output)
         if detected_version is None:
+            # Cannot parse version — treat as an error only if min version required
+            if minimum_version is not None:
+                return CheckResult(
+                    name=name,
+                    status=CheckStatus.ERROR,
+                    is_critical=is_critical,
+                    message=f"Could not parse {name} version from output.",
+                    detected_path=resolved_path,
+                    download_url=download_url,
+                    details=raw_output[:500],
+                )
+            # No version requirement — found is enough
             return CheckResult(
                 name=name,
-                status=CheckStatus.ERROR,
-                is_critical=True,
-                message=f"Could not parse {name} version from output.",
+                status=CheckStatus.OK,
+                is_critical=is_critical,
+                message=f"{name} found (version unknown). ({resolved_path})",
                 detected_path=resolved_path,
-                download_url=download_url,
-                details=raw_output[:500],
             )
 
         # 4. Version comparison
-        if not _version_meets_minimum(detected_version, minimum_version):
+        if minimum_version is not None and not _version_meets_minimum(
+            detected_version, minimum_version
+        ):
             return CheckResult(
                 name=name,
                 status=CheckStatus.VERSION_TOO_OLD,
-                is_critical=True,
+                is_critical=is_critical,
                 message=(
                     f"{name} v{detected_version} found; "
                     f"v{minimum_version}+ required."
@@ -677,7 +762,7 @@ class DependencyChecker:
         return CheckResult(
             name=name,
             status=CheckStatus.OK,
-            is_critical=True,
+            is_critical=is_critical,
             message=f"{name} v{detected_version} — OK. ({resolved_path})",
             detected_version=detected_version,
             minimum_version=minimum_version,

@@ -211,6 +211,51 @@ class TestPathDerivation:
         assert p.stem == "bird"
         assert p.parent == pm.get_output_svg_dir()
 
+    def test_temp_path_for_collision_prevention(self, pm: PathManager) -> None:
+        """Calling temp_path_for twice with same name must return different paths."""
+        p1 = pm.temp_path_for(Path("image.jpg"))
+        p2 = pm.temp_path_for(Path("image.jpg"))
+        assert p1 != p2
+
+
+# ===========================================================================
+# Cleanup API
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestCleanupAPI:
+    def test_cleanup_temp_file_removes_file(self, pm: PathManager) -> None:
+        p = pm.temp_path_for(Path("test.jpg"))
+        p.write_bytes(b"data")
+        assert p.is_file()
+        assert pm.cleanup_temp_file(p) is True
+        assert not p.exists()
+
+    def test_cleanup_temp_file_missing_returns_false(self, pm: PathManager) -> None:
+        p = pm.temp_path_for(Path("nonexistent.jpg"))
+        assert pm.cleanup_temp_file(p) is False
+
+    def test_cleanup_all_temp_files(self, pm: PathManager) -> None:
+        p1 = pm.temp_path_for(Path("1.jpg"))
+        p2 = pm.temp_path_for(Path("2.jpg"))
+        p1.write_bytes(b"data1")
+        p2.write_bytes(b"data2")
+        
+        # Create a subdirectory to ensure it's not removed
+        subdir = pm.get_temp_dir() / "subdir"
+        subdir.mkdir(exist_ok=True)
+        
+        assert p1.is_file()
+        assert p2.is_file()
+        assert subdir.is_dir()
+        
+        deleted_count = pm.cleanup_all_temp_files()
+        assert deleted_count == 2
+        assert not p1.exists()
+        assert not p2.exists()
+        assert subdir.exists()
+
 
 # ===========================================================================
 # Thread safety

@@ -400,7 +400,7 @@ class TestCheckWritePermissions:
         assert result.passed
         assert new_dir.is_dir()
 
-    @patch("vector_tracer_pro.core.dependency_checker.os.access", return_value=False)
+    @patch("pathlib.Path.write_bytes", side_effect=OSError("Permission denied"))
     def test_non_writable_path_returns_permission_denied(
         self, _: MagicMock, tmp_path: Path
     ) -> None:
@@ -478,7 +478,7 @@ class TestCheckAll:
         checker = DependencyChecker(write_check_paths=[tmp_path])
         report = checker.check_all()
         assert isinstance(report, ValidationReport)
-        assert len(report.all_checks) == 5
+        assert len(report.all_checks) == 6
 
     @patch(
         "vector_tracer_pro.core.dependency_checker.shutil.which",

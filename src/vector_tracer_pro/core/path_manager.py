@@ -15,8 +15,13 @@ Design principles
   ``%LOCALAPPDATA%``, ``%USERPROFILE%\\Documents``, etc.).
 * **Automatic directory creation** — every directory accessor calls
   :meth:`_ensure`, which calls ``Path.mkdir(parents=True, exist_ok=True)``.
-* **Thread-safe creation** — a ``threading.Lock`` guards all ``mkdir``
-  calls to prevent TOCTOU races in multi-threaded batch contexts.
+* **Thread-safe, re-entrant lock** — an ``RLock`` guards all ``mkdir``
+  calls.  Because ``ensure_all_dirs`` calls multiple accessors (each of which
+  acquires the lock), an ``RLock`` is required to allow re-acquisition by the
+  same thread without deadlock.
+* **Collision-free temp paths** — :meth:`temp_path_for` prepends a short
+  UUID so that two source files sharing the same stem (e.g. ``logo.jpg``
+  from different directories) never produce the same intermediate file.
 * **Configurable output root** — the UI can call :meth:`set_output_root`
   when the user selects a different output folder without recreating the
   manager instance.
@@ -32,7 +37,7 @@ Typical directory layout on Windows 11
             Previews\\   ← JPG preview files
 
     %LOCALAPPDATA%\\VectorTracerPro\\
-        Cache\\temp\\    ← intermediate BMP / PBM files
+        Cache\\temp\\    ← intermediate BMP / PBM files  (UUID-prefixed)
         Logs\\           ← rotating log files
 
     %APPDATA%\\VectorTracerPro\\
@@ -42,7 +47,9 @@ Typical directory layout on Windows 11
 
 from __future__ import annotations
 
+import logging
 import threading
+import uuid
 from pathlib import Path
 from typing import Final
 
@@ -54,6 +61,8 @@ from platformdirs import (
 )
 
 from vector_tracer_pro.config.defaults import APP_AUTHOR, APP_NAME
+
+logger = logging.getLogger(__name__)
 
 # Folder name used inside all platform-managed directories.
 _APP_FOLDER: Final[str] = APP_NAME  # "VectorTracerPro"
@@ -108,11 +117,37 @@ class PathManager:
             temp_root if temp_root is not None else self._cache_dir / "temp"
         )
 
-        # Non-reentrant lock — guards all mkdir calls
-        self._lock: threading.Lock = threading.Lock()
+        # RLock (re-entrant): the *same* thread can acquire the lock multiple
+        # times without blocking.  This is necessary because ensure_all_dirs()
+        # calls multiple accessor methods, each of which calls _ensure() and
+        # acquires the lock — a plain Lock would deadlock on the second call.
+        self._lock: threading.RLock = threading.RLock()
 
     # ------------------------------------------------------------------
-    # Directory accessors
+    # Public read-only properties (no side effects, no directory creation)
+    # ------------------------------------------------------------------
+
+    @property
+    def temp_root(self) -> Path:
+        """Return the temp root path without creating it.
+
+        Use this when you need the path for inspection or configuration,
+        not when you need the directory to actually exist.
+        """
+        return self._temp_root
+
+    @property
+    def config_dir_path(self) -> Path:
+        """Return the config directory path without creating it."""
+        return self._config_dir
+
+    @property
+    def log_dir_path(self) -> Path:
+        """Return the log directory path without creating it."""
+        return self._log_dir
+
+    # ------------------------------------------------------------------
+    # Directory accessors (auto-create on first call)
     # ------------------------------------------------------------------
 
     def get_input_dir(self) -> Path:
@@ -237,7 +272,12 @@ class PathManager:
         return self.get_output_preview_dir() / input_path.with_suffix(".jpg").name
 
     def temp_path_for(self, input_path: Path, suffix: str = ".bmp") -> Path:
-        """Derive a temporary intermediate file path for a given source image.
+        """Derive a **unique** temporary intermediate file path.
+
+        A short UUID prefix is prepended to the stem so that two source images
+        sharing the same filename (e.g. ``logo.jpg`` from different directories)
+        never produce the same intermediate file.  Each call returns a
+        different path even for identical inputs.
 
         Parameters
         ----------
@@ -250,14 +290,70 @@ class PathManager:
         Returns
         -------
         Path
-            Temporary path inside :meth:`get_temp_dir`.
+            Unique temporary path inside :meth:`get_temp_dir`.
 
         Examples
         --------
         >>> pm.temp_path_for(Path("sunset.jpg"), suffix=".bmp")
-        WindowsPath('.../Cache/temp/sunset.bmp')
+        WindowsPath('.../Cache/temp/3a1b2c4d_sunset.bmp')
         """
-        return self.get_temp_dir() / input_path.with_suffix(suffix).name
+        unique_prefix = uuid.uuid4().hex[:8]
+        filename = f"{unique_prefix}_{input_path.stem}{suffix}"
+        return self.get_temp_dir() / filename
+
+    # ------------------------------------------------------------------
+    # Cleanup API
+    # ------------------------------------------------------------------
+
+    def cleanup_temp_file(self, path: Path) -> bool:
+        """Delete a single temporary file produced by this manager.
+
+        Parameters
+        ----------
+        path:
+            Path to the file to delete.
+
+        Returns
+        -------
+        bool
+            ``True`` if the file was deleted; ``False`` if it did not exist.
+
+        Raises
+        ------
+        OSError
+            If the file exists but cannot be deleted (e.g. permission error
+            or file locked by another process).
+        """
+        if not path.is_file():
+            return False
+        path.unlink()
+        logger.debug("Deleted temp file: %s", path)
+        return True
+
+    def cleanup_all_temp_files(self) -> int:
+        """Delete all *files* in the temp directory.
+
+        Sub-directories inside the temp directory are **not** removed.
+        Individual deletion failures are logged at WARNING level and skipped
+        so that a single locked file does not abort the entire cleanup.
+
+        Returns
+        -------
+        int
+            Number of files successfully deleted.
+        """
+        temp_dir = self.get_temp_dir()
+        deleted = 0
+        for entry in temp_dir.iterdir():
+            if entry.is_file():
+                try:
+                    entry.unlink()
+                    deleted += 1
+                    logger.debug("Deleted temp file: %s", entry)
+                except OSError as exc:
+                    logger.warning("Could not delete temp file %s: %s", entry, exc)
+        logger.info("Cleaned up %d temp file(s) from %s.", deleted, temp_dir)
+        return deleted
 
     # ------------------------------------------------------------------
     # Bulk operations
@@ -268,6 +364,8 @@ class PathManager:
 
         Safe to call multiple times — uses ``exist_ok=True`` internally.
         Typically called once at application startup by the controller.
+        The ``RLock`` allows this method to call multiple accessors without
+        deadlocking on the re-entrant lock acquisitions.
         """
         self.get_input_dir()
         self.get_output_svg_dir()
@@ -281,8 +379,7 @@ class PathManager:
         """Update the output root directory at runtime.
 
         Called by the controller when the user selects a different output
-        folder via the UI.  Thread-safe: acquires the internal lock before
-        reassigning.
+        folder via the UI.  Thread-safe via the internal RLock.
 
         Parameters
         ----------
@@ -311,7 +408,7 @@ class PathManager:
     def _ensure(self, path: Path) -> Path:
         """Create *path* and all parents if they do not already exist.
 
-        Thread-safe via the internal lock.  Returns *path* unchanged so
+        Thread-safe via the internal RLock.  Returns *path* unchanged so
         accessors can be used as expressions.
 
         Parameters
