@@ -10,47 +10,22 @@ This module decouples the *decision* of which engine to use from both:
   - :mod:`vector_tracer_pro.trace.potrace_engine` / ``inkscape_engine``
     (which perform the actual tracing)
 
-Planned engine routing (Sprint 3 implementation)
--------------------------------------------------
-+------------------+-------------------+----------------------------------+
-| Image type       | Primary engine    | Fallback                         |
-+==================+===================+==================================+
-| MONOCHROME       | Potrace           | —                                |
-+------------------+-------------------+----------------------------------+
-| GREYSCALE        | Potrace           | —                                |
-+------------------+-------------------+----------------------------------+
-| COLOUR_SIMPLE    | Inkscape          | VTracer (if available)           |
-+------------------+-------------------+----------------------------------+
-| COLOUR_COMPLEX   | Inkscape          | VTracer (if available)           |
-+------------------+-------------------+----------------------------------+
-
-.. note::
-
-    This file is a **Sprint 2 skeleton**.  The ``TraceStrategySelector``
-    class raises :exc:`NotImplementedError` until Sprint 3.  Import the
-    types freely; do not call ``select()`` yet.
-
-Usage (Sprint 3+)
------------------
-::
-
-    from vector_tracer_pro.core.classifier import ImageClassifier
-    from vector_tracer_pro.core.trace_strategy import TraceStrategySelector
-
-    classifier = ImageClassifier()
-    result = classifier.classify(image)
-
-    selector = TraceStrategySelector()
-    strategy = selector.select(result, preset_name="adobe_stock")
-    # strategy.primary_engine → TraceEngine.INKSCAPE
+This module implements a true **Strategy Pattern**:
+Each vectorisation engine is encapsulated inside its own strategy class
+inheriting from the abstract base class ``TracingStrategy``. The client code
+(pipeline runner) only needs to call ``strategy.execute(input, output)`` without
+worrying about which engine is selected.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 from enum import Enum
+from pathlib import Path
+from typing import Final
 
 from vector_tracer_pro.core.classifier import ClassificationResult, ImageType
+from vector_tracer_pro.core.exceptions import TracingError
 
 
 class TraceEngine(Enum):
@@ -71,29 +46,36 @@ class TraceEngine(Enum):
     VTRACER = "vtracer"
 
 
-@dataclass(frozen=True)
-class TraceStrategy:
-    """Resolved strategy for tracing a single image.
+class TracingStrategy(ABC):
+    """Abstract Base Class for vectorisation strategies (Strategy Pattern).
 
-    Attributes
+    Parameters
     ----------
-    primary_engine:
-        The engine that should be attempted first.
-    fallback_engine:
-        The engine to use if the primary fails, or ``None`` if no fallback
-        is available.
     reason:
         Human-readable explanation of why this strategy was chosen.
-    engine_params:
-        Arbitrary key-value pairs forwarded to the selected engine.
-        Exact keys depend on the engine (e.g. ``turdsize`` for Potrace,
-        ``colours`` for Inkscape).
+    params:
+        Engine-specific parameters (e.g. turdsize for Potrace, colors for Inkscape).
     """
 
-    primary_engine: TraceEngine
-    fallback_engine: TraceEngine | None
-    reason: str
-    engine_params: dict[str, object] = field(default_factory=dict)
+    def __init__(self, reason: str, params: dict[str, object] | None = None) -> None:
+        self.reason: str = reason
+        self.params: dict[str, object] = params or {}
+
+    @property
+    @abstractmethod
+    def primary_engine(self) -> TraceEngine:
+        """Return the primary vectorisation engine for this strategy."""
+        pass
+
+    @property
+    def fallback_engine(self) -> TraceEngine | None:
+        """Return the fallback vectorisation engine, or None if not available."""
+        return None
+
+    @property
+    def engine_params(self) -> dict[str, object]:
+        """Return parameters forwarded to the engine."""
+        return self.params
 
     @property
     def uses_potrace(self) -> bool:
@@ -110,6 +92,24 @@ class TraceStrategy:
         """``True`` if VTracer is the primary or fallback engine."""
         return TraceEngine.VTRACER in (self.primary_engine, self.fallback_engine)
 
+    @abstractmethod
+    def execute(self, input_path: Path, output_svg_path: Path) -> None:
+        """Execute the vectorisation engine on the input file.
+
+        Parameters
+        ----------
+        input_path:
+            Path to the input raster file (typically BMP or PBM).
+        output_svg_path:
+            Target path where the traced SVG file will be written.
+
+        Raises
+        ------
+        TracingError
+            If execution fails.
+        """
+        pass
+
     def __str__(self) -> str:
         fallback = (
             f" → fallback: {self.fallback_engine.value}"
@@ -123,53 +123,113 @@ class TraceStrategy:
         )
 
 
-# ---------------------------------------------------------------------------
-# Default strategies (read-only reference mapping, used by Sprint 3 impl)
-# ---------------------------------------------------------------------------
+class PotraceTracingStrategy(TracingStrategy):
+    """Strategy that executes the Potrace vectorisation engine."""
 
-_DEFAULT_STRATEGY_MAP: dict[ImageType, TraceStrategy] = {
-    ImageType.MONOCHROME: TraceStrategy(
-        primary_engine=TraceEngine.POTRACE,
-        fallback_engine=None,
-        reason="Monochrome image — Potrace is optimal.",
-    ),
-    ImageType.GREYSCALE: TraceStrategy(
-        primary_engine=TraceEngine.POTRACE,
-        fallback_engine=None,
-        reason="Greyscale image — Potrace with greyscale pre-processing.",
-    ),
-    ImageType.COLOUR_SIMPLE: TraceStrategy(
-        primary_engine=TraceEngine.INKSCAPE,
-        fallback_engine=TraceEngine.VTRACER,
-        reason="Simple colour palette — Inkscape multi-colour tracing.",
-    ),
-    ImageType.COLOUR_COMPLEX: TraceStrategy(
-        primary_engine=TraceEngine.INKSCAPE,
-        fallback_engine=TraceEngine.VTRACER,
-        reason="Complex colour palette — Inkscape full-colour tracing.",
-    ),
-}
+    @property
+    def primary_engine(self) -> TraceEngine:
+        return TraceEngine.POTRACE
+
+    def execute(self, input_path: Path, output_svg_path: Path) -> None:
+        """Run Potrace CLI."""
+        raise NotImplementedError(
+            "PotraceTracingStrategy.execute() is a Sprint 3 deliverable."
+        )
 
 
+class InkscapeTracingStrategy(TracingStrategy):
+    """Strategy that executes the Inkscape vectorisation engine."""
+
+    @property
+    def primary_engine(self) -> TraceEngine:
+        return TraceEngine.INKSCAPE
+
+    def execute(self, input_path: Path, output_svg_path: Path) -> None:
+        """Run Inkscape headless CLI."""
+        raise NotImplementedError(
+            "InkscapeTracingStrategy.execute() is a Sprint 3 deliverable."
+        )
+
+
+class VTracerTracingStrategy(TracingStrategy):
+    """Strategy that executes the VTracer vectorisation engine."""
+
+    @property
+    def primary_engine(self) -> TraceEngine:
+        return TraceEngine.VTRACER
+
+    def execute(self, input_path: Path, output_svg_path: Path) -> None:
+        """Run VTracer CLI."""
+        raise NotImplementedError(
+            "VTracerTracingStrategy.execute() is a Sprint 3 deliverable."
+        )
+
+
+class FallbackTracingStrategy(TracingStrategy):
+    """Strategy that wraps a primary strategy and executes a fallback on failure.
+
+    This implements a composite-like Strategy Pattern, allowing transparent
+    error handling and engine fallback.
+    """
+
+    def __init__(
+        self,
+        primary: TracingStrategy,
+        fallback: TracingStrategy,
+        reason: str,
+    ) -> None:
+        super().__init__(reason=reason)
+        self.primary: TracingStrategy = primary
+        self.fallback: TracingStrategy = fallback
+
+    @property
+    def primary_engine(self) -> TraceEngine:
+        return self.primary.primary_engine
+
+    @property
+    def fallback_engine(self) -> TraceEngine | None:
+        return self.fallback.primary_engine
+
+    @property
+    def engine_params(self) -> dict[str, object]:
+        return self.primary.engine_params
+
+    def execute(self, input_path: Path, output_svg_path: Path) -> None:
+        """Try primary strategy, fall back to secondary on TracingError."""
+        try:
+            self.primary.execute(input_path, output_svg_path)
+        except TracingError as exc:
+            # Under actual implementation, log warning and try fallback:
+            # logger.warning("Primary engine failed, falling back: %s", exc)
+            self.fallback.execute(input_path, output_svg_path)
+
+
 # ---------------------------------------------------------------------------
-# Selector (Sprint 3 implementation target)
+# Default strategy templates
 # ---------------------------------------------------------------------------
+
+_MONOCHROME_TEMPLATE: Final[TracingStrategy] = PotraceTracingStrategy(
+    reason="Monochrome image — Potrace is optimal.",
+)
+_GREYSCALE_TEMPLATE: Final[TracingStrategy] = PotraceTracingStrategy(
+    reason="Greyscale image — Potrace with greyscale pre-processing.",
+)
+_COLOUR_SIMPLE_TEMPLATE: Final[TracingStrategy] = InkscapeTracingStrategy(
+    reason="Simple colour palette — Inkscape multi-colour tracing.",
+)
+_COLOUR_COMPLEX_TEMPLATE: Final[TracingStrategy] = InkscapeTracingStrategy(
+    reason="Complex colour palette — Inkscape full-colour tracing.",
+)
 
 
 class TraceStrategySelector:
-    """Selects the optimal trace engine and parameters for a classified image.
-
-    .. warning::
-
-        **Sprint 3 placeholder.**  Calling :meth:`select` raises
-        :exc:`NotImplementedError`.  The class structure is final; only the
-        implementation body is missing.
+    """Selects and instantiates the optimal TracingStrategy for a classified image.
 
     Parameters
     ----------
     vtracer_available:
-        Whether VTracer is installed on PATH.  When ``False``, strategies
-        that list VTracer as a fallback will have ``fallback_engine=None``.
+        Whether VTracer is installed on PATH. When ``False``, fallback to
+        VTracer is disabled and only the primary engine is returned.
     """
 
     def __init__(self, *, vtracer_available: bool = False) -> None:
@@ -180,38 +240,29 @@ class TraceStrategySelector:
         classification: ClassificationResult,
         *,
         preset_name: str = "default",
-    ) -> TraceStrategy:
-        """Select the optimal :class:`TraceStrategy` for *classification*.
+    ) -> TracingStrategy:
+        """Select the optimal :class:`TracingStrategy` for *classification*.
 
         Parameters
         ----------
         classification:
             Result of :class:`~vector_tracer_pro.core.classifier.ImageClassifier`.
         preset_name:
-            Active marketplace preset name (e.g. ``"adobe_stock"``).  Used
-            in Sprint 3 to apply preset-specific engine parameter overrides.
+            Active marketplace preset name (e.g. ``"adobe_stock"``). Used
+            to apply preset-specific engine parameters.
 
         Returns
         -------
-        TraceStrategy
-            Resolved engine selection and parameters.
-
-        Raises
-        ------
-        NotImplementedError
-            **Sprint 3 target** — not yet implemented.
+        TracingStrategy
+            Resolved concrete tracing strategy ready to be executed.
         """
-        raise NotImplementedError(
-            "TraceStrategySelector.select() is a Sprint 3 deliverable. "
-            "Use _DEFAULT_STRATEGY_MAP for read-only reference mapping."
-        )
+        # For now, preset logic is stubbed and we delegate to default_for
+        return self.default_for(classification.image_type)
 
-    def default_for(self, image_type: ImageType) -> TraceStrategy:
-        """Return the default strategy for *image_type* (no preset overrides).
+    def default_for(self, image_type: ImageType) -> TracingStrategy:
+        """Return the default strategy for *image_type*.
 
-        This method is safe to call before Sprint 3 — it consults
-        :data:`_DEFAULT_STRATEGY_MAP` directly without any preset logic.
-        VTracer fallback is suppressed if ``vtracer_available=False``.
+        Suppresses VTracer fallback if ``vtracer_available=False``.
 
         Parameters
         ----------
@@ -220,15 +271,27 @@ class TraceStrategySelector:
 
         Returns
         -------
-        TraceStrategy
-            Default strategy, potentially with VTracer fallback removed.
+        TracingStrategy
         """
-        base = _DEFAULT_STRATEGY_MAP[image_type]
-        if not self._vtracer_available and base.fallback_engine is TraceEngine.VTRACER:
-            return TraceStrategy(
-                primary_engine=base.primary_engine,
-                fallback_engine=None,
-                reason=base.reason + " (VTracer unavailable; no fallback.)",
-                engine_params=base.engine_params,
+        if image_type == ImageType.MONOCHROME:
+            return _MONOCHROME_TEMPLATE
+        if image_type == ImageType.GREYSCALE:
+            return _GREYSCALE_TEMPLATE
+
+        # For colour image types, we may use VTracer as a fallback if available
+        primary_reason = (
+            "Simple colour palette — Inkscape multi-colour tracing."
+            if image_type == ImageType.COLOUR_SIMPLE
+            else "Complex colour palette — Inkscape full-colour tracing."
+        )
+
+        primary = InkscapeTracingStrategy(reason=primary_reason)
+        if self._vtracer_available:
+            fallback = VTracerTracingStrategy(reason="VTracer fallback option.")
+            return FallbackTracingStrategy(
+                primary=primary,
+                fallback=fallback,
+                reason=f"{primary_reason} (VTracer fallback enabled.)",
             )
-        return base
+
+        return primary

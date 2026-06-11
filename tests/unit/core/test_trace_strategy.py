@@ -8,12 +8,18 @@ Unit tests for :mod:`vector_tracer_pro.core.trace_strategy`.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 import pytest
 
 from vector_tracer_pro.core.classifier import ClassificationResult, ImageType
+from vector_tracer_pro.core.exceptions import TracingError
 from vector_tracer_pro.core.trace_strategy import (
     TraceEngine,
-    TraceStrategy,
+    TracingStrategy,
+    PotraceTracingStrategy,
+    InkscapeTracingStrategy,
+    VTracerTracingStrategy,
+    FallbackTracingStrategy,
     TraceStrategySelector,
 )
 
@@ -27,42 +33,91 @@ class TestTraceEngine:
 
 
 @pytest.mark.unit
-class TestTraceStrategy:
-    def test_uses_flags(self) -> None:
-        ts = TraceStrategy(
-            primary_engine=TraceEngine.POTRACE,
-            fallback_engine=None,
-            reason="Test mono",
-        )
+class TestTracingStrategyHierarchy:
+    def test_cannot_instantiate_abc(self) -> None:
+        with pytest.raises(TypeError):
+            # TracingStrategy has abstract methods / properties
+            TracingStrategy(reason="ABC")  # type: ignore[abstract]
+
+    def test_potrace_strategy_properties(self) -> None:
+        ts = PotraceTracingStrategy(reason="Test mono", params={"turdsize": 10})
+        assert ts.primary_engine == TraceEngine.POTRACE
+        assert ts.fallback_engine is None
+        assert ts.engine_params == {"turdsize": 10}
         assert ts.uses_potrace is True
         assert ts.uses_inkscape is False
         assert ts.uses_vtracer is False
+        
+        with pytest.raises(NotImplementedError):
+            ts.execute(Path("in.bmp"), Path("out.svg"))
 
-        ts_color = TraceStrategy(
-            primary_engine=TraceEngine.INKSCAPE,
-            fallback_engine=TraceEngine.VTRACER,
-            reason="Test color",
-        )
-        assert ts_color.uses_potrace is False
-        assert ts_color.uses_inkscape is True
-        assert ts_color.uses_vtracer is True
+    def test_inkscape_strategy_properties(self) -> None:
+        ts = InkscapeTracingStrategy(reason="Test color")
+        assert ts.primary_engine == TraceEngine.INKSCAPE
+        assert ts.fallback_engine is None
+        assert ts.uses_potrace is False
+        assert ts.uses_inkscape is True
+        assert ts.uses_vtracer is False
+        
+        with pytest.raises(NotImplementedError):
+            ts.execute(Path("in.bmp"), Path("out.svg"))
+
+    def test_vtracer_strategy_properties(self) -> None:
+        ts = VTracerTracingStrategy(reason="Test vtracer")
+        assert ts.primary_engine == TraceEngine.VTRACER
+        assert ts.fallback_engine is None
+        assert ts.uses_potrace is False
+        assert ts.uses_inkscape is False
+        assert ts.uses_vtracer is True
+        
+        with pytest.raises(NotImplementedError):
+            ts.execute(Path("in.bmp"), Path("out.svg"))
+
+    def test_fallback_strategy_properties(self) -> None:
+        primary = InkscapeTracingStrategy(reason="Primary Inkscape", params={"colors": 8})
+        fallback = VTracerTracingStrategy(reason="Fallback VTracer")
+        ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Fallback composite")
+        
+        assert ts.primary_engine == TraceEngine.INKSCAPE
+        assert ts.fallback_engine == TraceEngine.VTRACER
+        assert ts.engine_params == {"colors": 8}
+        assert ts.uses_potrace is False
+        assert ts.uses_inkscape is True
+        assert ts.uses_vtracer is True
 
     def test_string_representation(self) -> None:
-        ts = TraceStrategy(
-            primary_engine=TraceEngine.POTRACE,
-            fallback_engine=None,
-            reason="Mono reason",
-        )
-        assert "primary_engine=TraceEngine.POTRACE" not in str(ts)
+        ts = PotraceTracingStrategy(reason="Mono reason")
         assert "engine=potrace" in str(ts)
         assert "Mono reason" in str(ts)
 
-        ts_fallback = TraceStrategy(
-            primary_engine=TraceEngine.INKSCAPE,
-            fallback_engine=TraceEngine.VTRACER,
-            reason="Color reason",
-        )
+        primary = InkscapeTracingStrategy(reason="Inkscape")
+        fallback = VTracerTracingStrategy(reason="VTracer")
+        ts_fallback = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Color reason")
         assert "fallback: vtracer" in str(ts_fallback)
+
+
+@pytest.mark.unit
+class TestFallbackStrategyExecution:
+    def test_fallback_execution_success(self) -> None:
+        primary = MagicMock(spec=TracingStrategy)
+        fallback = MagicMock(spec=TracingStrategy)
+        
+        ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Test execution")
+        ts.execute(Path("in.bmp"), Path("out.svg"))
+        
+        primary.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"))
+        fallback.execute.assert_not_called()
+
+    def test_fallback_execution_failure_bubbles_to_fallback(self) -> None:
+        primary = MagicMock(spec=TracingStrategy)
+        primary.execute.side_effect = TracingError("Primary failed")
+        fallback = MagicMock(spec=TracingStrategy)
+        
+        ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Test execution")
+        ts.execute(Path("in.bmp"), Path("out.svg"))
+        
+        primary.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"))
+        fallback.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"))
 
 
 @pytest.mark.unit
@@ -84,9 +139,8 @@ class TestTraceStrategySelector:
         strategy = selector.default_for(ImageType.COLOUR_SIMPLE)
         assert strategy.primary_engine == TraceEngine.INKSCAPE
         assert strategy.fallback_engine is None
-        assert "VTracer unavailable" in strategy.reason
 
-    def test_select_raises_not_implemented(self) -> None:
+    def test_select_returns_default(self) -> None:
         selector = TraceStrategySelector()
         mock_classification = ClassificationResult(
             image_type=ImageType.MONOCHROME,
@@ -95,6 +149,5 @@ class TestTraceStrategySelector:
             confidence=1.0,
             recommended_engine="potrace",
         )
-        with pytest.raises(NotImplementedError) as exc_info:
-            selector.select(mock_classification)
-        assert "select() is a Sprint 3 deliverable" in str(exc_info.value)
+        strategy = selector.select(mock_classification)
+        assert strategy.primary_engine == TraceEngine.POTRACE
