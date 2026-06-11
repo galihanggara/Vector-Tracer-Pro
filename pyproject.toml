@@ -1,0 +1,145 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ---------------------------------------------------------------------------
+# Project Metadata
+# ---------------------------------------------------------------------------
+[project]
+name = "vector-tracer-pro"
+version = "0.1.0-alpha.1"
+description = "Production-ready desktop application for converting raster images to stock-ready SVG files"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+authors = [{ name = "Vector Tracer Pro Team" }]
+keywords = ["svg", "vector", "tracing", "potrace", "inkscape", "stock", "adobe", "shutterstock", "freepik"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Multimedia :: Graphics :: Editors :: Vector-Based",
+]
+
+dependencies = [
+    "PySide6>=6.7.0",
+    "Pillow>=10.3.0",
+    "pydantic>=2.7.0",
+    "platformdirs>=4.2.0",
+    "scour>=0.38.2",
+    "lxml>=5.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-qt>=4.4.0",
+    "pytest-cov>=5.0.0",
+    "pytest-benchmark>=4.0.0",
+    "mypy>=1.10.0",
+    "ruff>=0.4.0",
+    "pre-commit>=3.7.0",
+    "pdoc>=14.5.0",
+    "types-Pillow>=10.2.0",
+    "lxml-stubs>=0.5.0",
+]
+
+[project.scripts]
+vector-tracer-pro = "vector_tracer_pro.app:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/vector-tracer-pro"
+Repository = "https://github.com/your-org/vector-tracer-pro"
+"Bug Tracker" = "https://github.com/your-org/vector-tracer-pro/issues"
+Changelog = "https://github.com/your-org/vector-tracer-pro/blob/main/CHANGELOG.md"
+
+# ---------------------------------------------------------------------------
+# Hatch Build Configuration
+# ---------------------------------------------------------------------------
+[tool.hatch.build.targets.wheel]
+packages = ["src/vector_tracer_pro"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"src/vector_tracer_pro/resources" = "share/vector_tracer_pro/resources"
+
+# ---------------------------------------------------------------------------
+# Ruff — Linter & Formatter
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "ANN",  # flake8-annotations
+    "C4",   # flake8-comprehensions
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "ANN101",  # self type annotation not required
+    "ANN102",  # cls type annotation not required
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S101"]  # no annotations required in tests; assert is fine
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# ---------------------------------------------------------------------------
+# Mypy — Static Type Checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+plugins = ["pydantic.mypy"]
+exclude = ["packaging", "scripts", "docs"]
+
+[[tool.mypy.overrides]]
+module = ["scour.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--cov=src/vector_tracer_pro",
+    "--cov-report=term-missing",
+    "--cov-report=html:docs/coverage",
+    "-v",
+]
+markers = [
+    "unit: fast unit tests, no external binaries",
+    "integration: requires Potrace and Inkscape on PATH",
+    "compliance: marketplace specification validation",
+    "gui: requires a display / PySide6",
+    "benchmark: performance benchmarks",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/ui/*"]  # UI coverage tracked separately via pytest-qt
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false

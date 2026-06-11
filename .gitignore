@@ -1,0 +1,85 @@
+# =============================================================================
+# Vector Tracer Pro — .gitignore
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+.eggs/
+
+# PyInstaller
+*.spec.bak
+dist/
+build/
+
+# Installer artefacts (generated)
+packaging/pyinstaller/dist/
+packaging/pyinstaller/build/
+packaging/nsis/*.exe
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+docs/coverage/
+*.benchmark.json
+
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# IDE — VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# IDE — JetBrains
+.idea/
+*.iml
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Temp / intermediate files produced by the application
+*.bmp.tmp
+*.pbm.tmp
+*.svg.tmp
+
+# User config (written at runtime to platformdirs)
+# (not stored in repo — lives in %APPDATA%\VectorTracerPro)
+
+# Secrets / signing
+*.pfx
+*.p12
+codesign.env
+
+# Logs
+logs/
+*.log
