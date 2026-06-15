@@ -84,6 +84,10 @@ class InkscapeVersionError(DependencyError):
     """Inkscape found but version does not meet minimum requirement."""
 
 
+class DependencyMissingError(DependencyError):
+    """Raised when an external dependency is missing from the environment."""
+
+
 # =============================================================================
 # Image loading errors
 # =============================================================================
@@ -105,6 +109,10 @@ class ImageLoadError(ImageError):
     def __init__(self, message: str, *, path: str) -> None:
         super().__init__(message)
         self.path = path
+
+
+class CorruptImageError(ImageLoadError):
+    """Raised when the image file is corrupt or malformed."""
 
 
 class UnsupportedFormatError(ImageError):
@@ -163,6 +171,50 @@ class ImageTooSmallError(ImageError):
         self.height = height
         self.min_width = min_width
         self.min_height = min_height
+
+
+class ImageSizeError(ImageError):
+    """Raised when the image dimensions are outside the acceptable min/max range.
+
+    Attributes
+    ----------
+    path:
+        The filesystem path.
+    width:
+        Actual image width in pixels.
+    height:
+        Actual image height in pixels.
+    min_width:
+        Minimum required width in pixels.
+    min_height:
+        Minimum required height in pixels.
+    max_width:
+        Maximum required width in pixels.
+    max_height:
+        Maximum required height in pixels.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        path: str,
+        width: int,
+        height: int,
+        min_width: int,
+        min_height: int,
+        max_width: int,
+        max_height: int,
+    ) -> None:
+        super().__init__(message)
+        self.path = path
+        self.width = width
+        self.height = height
+        self.min_width = min_width
+        self.min_height = min_height
+        self.max_width = max_width
+        self.max_height = max_height
+
 
 
 # =============================================================================
@@ -236,6 +288,31 @@ class InkscapeTracingError(TracingError):
         super().__init__(message)
         self.return_code = return_code
         self.stderr = stderr
+
+
+class TraceExecutionError(TracingError):
+    """Raised when a tracing subprocess fails with a non-zero exit code.
+
+    Attributes
+    ----------
+    return_code:
+        Process return code.
+    stderr:
+        Captured stderr output.
+    """
+
+    def __init__(self, message: str, *, return_code: int, stderr: str = "") -> None:
+        super().__init__(message)
+        self.return_code = return_code
+        self.stderr = stderr
+
+
+class TraceTimeoutError(TracingError):
+    """Raised when a tracing subprocess exceeds its allowed execution timeout."""
+
+
+class TraceFailedError(TracingError):
+    """Raised when all tracing strategies in the fallback chain fail."""
 
 
 # =============================================================================

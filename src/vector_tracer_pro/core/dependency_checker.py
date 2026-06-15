@@ -328,9 +328,11 @@ class DependencyChecker:
         min_disk_space_mb: float = _DEFAULT_MIN_DISK_MB,
         disk_check_path: Path | None = None,
     ) -> None:
-        self._potrace_exe: str = potrace_executable
-        self._inkscape_exe: str = inkscape_executable
-        self._vtracer_exe: str = vtracer_executable
+        from vector_tracer_pro.core.path_manager import PathManager
+        pm = PathManager()
+        self._potrace_exe: str = pm.get_binary_path(potrace_executable)
+        self._inkscape_exe: str = pm.get_binary_path(inkscape_executable)
+        self._vtracer_exe: str = pm.get_binary_path(vtracer_executable)
         self._write_check_paths: Sequence[Path] = write_check_paths or []
         self._min_disk_space_mb: float = min_disk_space_mb
         self._disk_check_path: Path = disk_check_path or Path.home()

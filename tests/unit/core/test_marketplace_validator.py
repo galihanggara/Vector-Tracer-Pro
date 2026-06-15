@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from unittest.mock import MagicMock, patch
+
 from vector_tracer_pro.core.marketplace_validator import (
     MARKETPLACE_SPECS,
     SUPPORTED_MARKETPLACES,
@@ -20,6 +22,7 @@ from vector_tracer_pro.core.marketplace_validator import (
     ValidationResult,
     ValidationTier,
 )
+
 
 
 @pytest.mark.unit
@@ -259,3 +262,94 @@ class TestMarketplaceValidator:
         assert result.is_compliant is False
         assert any(i.rule_id == "preview_width" and i.status == RuleStatus.FAIL for i in result.issues)
         assert any(i.rule_id == "preview_height" and i.status == RuleStatus.FAIL for i in result.issues)
+
+
+from vector_tracer_pro.core.marketplace_validator import MarketplacePreset, ValidationError, ValidationWarning, ValidationReport
+
+@pytest.mark.unit
+class TestMarketplaceValidatorProduction:
+    def test_adobe_stock_compliant(self, tmp_path):
+        p = tmp_path / "compliant.svg"
+        p.write_text('<svg width="4000" height="4000"></svg>') # 16MP > 15MP
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.ADOBE_STOCK)
+        assert report.passed is True
+        assert len(report.errors) == 0
+
+    def test_adobe_stock_below_resolution(self, tmp_path):
+        p = tmp_path / "low_res.svg"
+        p.write_text('<svg width="3000" height="3000"></svg>') # 9MP < 15MP
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.ADOBE_STOCK)
+        assert report.passed is False
+        assert any(e.code == "BELOW_MIN_RESOLUTION" for e in report.errors)
+
+    def test_adobe_stock_too_large(self, tmp_path):
+        p = tmp_path / "too_large.svg"
+        p.write_text('<svg width="4000" height="4000"></svg>')
+        # Mock file size to be > 100MB
+        with patch.object(Path, "stat") as mock_stat:
+            mock_stat.return_value.st_size = 101 * 1024 * 1024
+            validator = MarketplaceValidator()
+            report = validator.validate(p, MarketplacePreset.ADOBE_STOCK)
+            assert report.passed is False
+            assert any(e.code == "FILE_TOO_LARGE" for e in report.errors)
+
+    def test_shutterstock_compliant(self, tmp_path):
+        p = tmp_path / "compliant_shutterstock.svg"
+        p.write_text('<svg width="2000" height="2000"><metadata>IPTC</metadata></svg>') # 4MP, has IPTC
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
+        assert report.passed is True
+        assert len(report.errors) == 0
+        assert len(report.warnings) == 0
+
+    def test_shutterstock_below_resolution(self, tmp_path):
+        p = tmp_path / "low_res_shutterstock.svg"
+        p.write_text('<svg width="1500" height="1500"><metadata>IPTC</metadata></svg>') # 2.25MP < 4MP
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
+        assert report.passed is False
+        assert any(e.code == "BELOW_MIN_RESOLUTION" for e in report.errors)
+
+    def test_shutterstock_missing_iptc(self, tmp_path):
+        p = tmp_path / "no_iptc.svg"
+        p.write_text('<svg width="2000" height="2000"></svg>') # 4MP, no IPTC
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
+        assert report.passed is True  # Warning, not error
+        assert len(report.errors) == 0
+        assert any(w.code == "MISSING_IPTC" for w in report.warnings)
+
+    def test_freepik_compliant(self, tmp_path):
+        p = tmp_path / "compliant_freepik.svg"
+        p.write_text('<svg width="1000" height="1000"></svg>')
+        
+        validator = MarketplaceValidator()
+        report = validator.validate(p, MarketplacePreset.FREEPIK)
+        assert report.passed is True
+        assert len(report.errors) == 0
+
+    def test_freepik_too_large(self, tmp_path):
+        p = tmp_path / "too_large_freepik.svg"
+        p.write_text('<svg width="1000" height="1000"></svg>')
+        with patch.object(Path, "stat") as mock_stat:
+            mock_stat.return_value.st_size = 26 * 1024 * 1024
+            validator = MarketplaceValidator()
+            report = validator.validate(p, MarketplacePreset.FREEPIK)
+            assert report.passed is False
+            assert any(e.code == "FILE_TOO_LARGE" for e in report.errors)
+
+    def test_parse_svg_dimension_units(self) -> None:
+        validator = MarketplaceValidator()
+        assert validator._parse_svg_dimension("100px") == 100.0
+        assert validator._parse_svg_dimension("100") == 100.0
+        assert validator._parse_svg_dimension("1in") == 96.0
+        assert abs(validator._parse_svg_dimension("10mm") - 37.795) < 0.1
+        assert abs(validator._parse_svg_dimension("1cm") - 37.795) < 0.1
+

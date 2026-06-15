@@ -108,7 +108,7 @@ class TestPotraceCheckIntegration:
 @pytest.mark.skipif(_POTRACE_AVAILABLE, reason="Only runs when Potrace is absent")
 class TestPotraceAbsent:
     def test_missing_potrace_returns_missing_status(self) -> None:
-        checker = DependencyChecker()
+        checker = DependencyChecker(potrace_executable="potrace_missing")
         result = checker._check_potrace()  # noqa: SLF001
         assert result.status == CheckStatus.MISSING
         assert result.is_critical is True

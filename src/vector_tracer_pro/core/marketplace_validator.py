@@ -70,6 +70,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 from typing import Final
+import xml.etree.ElementTree as ET
+
 
 
 # ===========================================================================
@@ -805,3 +807,196 @@ class MarketplaceValidator:
         Safe to call before Sprint 4.
         """
         return sorted(self._specs)
+
+    def validate(self, svg_path: Path, preset: MarketplacePreset) -> ValidationReport:
+        """Validate SVG output against specific marketplace preset."""
+        if preset == MarketplacePreset.ADOBE_STOCK:
+            return self._validate_adobe_stock(svg_path)
+        elif preset == MarketplacePreset.SHUTTERSTOCK:
+            return self._validate_shutterstock(svg_path)
+        elif preset == MarketplacePreset.FREEPIK:
+            return self._validate_freepik(svg_path)
+        else:
+            raise ValueError(f"Unsupported preset: {preset}")
+
+    def _parse_svg_dimension(self, value: str) -> float:
+        if not value:
+            return 0.0
+        value = value.strip().lower()
+        
+        # Extract numeric part
+        num_str = ""
+        unit_str = ""
+        for char in value:
+            if char.isdigit() or char in (".", "-"):
+                num_str += char
+            elif char.isalpha() or char == "%":
+                unit_str += char
+                
+        if not num_str:
+            return 0.0
+            
+        try:
+            val = float(num_str)
+        except ValueError:
+            return 0.0
+        
+        if unit_str == "mm":
+            return val * (96.0 / 25.4)
+        elif unit_str == "cm":
+            return val * (96.0 / 2.54)
+        elif unit_str == "in":
+            return val * 96.0
+        elif unit_str == "pt":
+            return val * (96.0 / 72.0)
+        elif unit_str == "pc":
+            return val * 16.0
+            
+        return val
+
+    def _get_svg_dimensions(self, svg_path: Path) -> tuple[float, float]:
+        try:
+            tree = ET.parse(svg_path)
+            root = tree.getroot()
+            width = root.get("width")
+            height = root.get("height")
+            viewBox = root.get("viewBox")
+            
+            w_val = 0.0
+            h_val = 0.0
+            
+            if width and "%" not in width:
+                w_val = self._parse_svg_dimension(width)
+            if height and "%" not in height:
+                h_val = self._parse_svg_dimension(height)
+                
+            if (w_val == 0.0 or h_val == 0.0) and viewBox:
+                parts = [float(p) for p in viewBox.replace(",", " ").split() if p]
+                if len(parts) == 4:
+                    if w_val == 0.0:
+                        w_val = parts[2]
+                    if h_val == 0.0:
+                        h_val = parts[3]
+                        
+            return w_val, h_val
+        except Exception:
+            return 0.0, 0.0
+
+    def _validate_adobe_stock(self, svg_path: Path) -> ValidationReport:
+        errors: list[ValidationError] = []
+        warnings: list[ValidationWarning] = []
+        
+        # 1. File exists
+        if not svg_path.exists():
+            errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
+            return ValidationReport(preset="adobe_stock", passed=False, errors=errors, warnings=warnings)
+            
+        # 2. File size
+        size = svg_path.stat().st_size
+        if size > 100 * 1024 * 1024:
+            errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 100MB"))
+            
+        # 3. Dimensions
+        w_val, h_val = self._get_svg_dimensions(svg_path)
+        if w_val * h_val < 15_000_000:
+            errors.append(ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 15MP"))
+            
+        # 4. Color Mode
+        try:
+            content = svg_path.read_text(errors="ignore")
+            if "device-cmyk" in content.lower() or "cmyk" in content.lower():
+                errors.append(ValidationError(code="INVALID_COLOR_MODE", message="Color mode must be RGB"))
+        except Exception as e:
+            errors.append(ValidationError(code="READ_ERROR", message=f"Failed to check color mode: {e}"))
+            
+        passed = len(errors) == 0
+        return ValidationReport(preset="adobe_stock", passed=passed, errors=errors, warnings=warnings)
+
+    def _validate_shutterstock(self, svg_path: Path) -> ValidationReport:
+        errors: list[ValidationError] = []
+        warnings: list[ValidationWarning] = []
+        
+        # 1. File exists
+        if not svg_path.exists():
+            errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
+            return ValidationReport(preset="shutterstock", passed=False, errors=errors, warnings=warnings)
+            
+        # 2. File size
+        size = svg_path.stat().st_size
+        if size > 50 * 1024 * 1024:
+            errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 50MB"))
+            
+        # 3. Dimensions
+        w_val, h_val = self._get_svg_dimensions(svg_path)
+        if w_val * h_val < 4_000_000:
+            errors.append(ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 4MP"))
+            
+        # 4. IPTC warning
+        try:
+            content = svg_path.read_text(errors="ignore")
+            if "<metadata>" not in content.lower() and "<rdf:rdf>" not in content.lower() and "iptc" not in content.lower():
+                warnings.append(ValidationWarning(code="MISSING_IPTC", message="IPTC metadata is missing"))
+        except Exception:
+            pass
+            
+        passed = len(errors) == 0
+        return ValidationReport(preset="shutterstock", passed=passed, errors=errors, warnings=warnings)
+
+    def _validate_freepik(self, svg_path: Path) -> ValidationReport:
+        errors: list[ValidationError] = []
+        warnings: list[ValidationWarning] = []
+        
+        # 1. File exists
+        if not svg_path.exists():
+            errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
+            return ValidationReport(preset="freepik", passed=False, errors=errors, warnings=warnings)
+            
+        # 2. File size
+        size = svg_path.stat().st_size
+        if size > 25 * 1024 * 1024:
+            errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 25MB"))
+            
+        # 3. Format
+        if svg_path.suffix.lower() not in (".svg", ".eps"):
+            errors.append(ValidationError(code="INVALID_FORMAT", message="Format not accepted"))
+            
+        passed = len(errors) == 0
+        return ValidationReport(preset="freepik", passed=passed, errors=errors, warnings=warnings)
+
+
+@dataclass
+class ValidationError:
+    """Represents a critical compliance failure."""
+    code: str
+    message: str
+    fatal: bool = True
+
+
+@dataclass
+class ValidationWarning:
+    """Represents a non-blocking compliance recommendation."""
+    code: str
+    message: str
+
+
+@dataclass
+class ValidationReport:
+    """Report summarizing the compliance state against a preset."""
+    preset: str
+    passed: bool
+    errors: list[ValidationError]
+    warnings: list[ValidationWarning]
+
+    def summary(self) -> str:
+        status = "PASSED" if self.passed else "FAILED"
+        err_msg = f"{len(self.errors)} error(s)"
+        warn_msg = f"{len(self.warnings)} warning(s)"
+        return f"Marketplace Validation [{self.preset}] — {status} ({err_msg}, {warn_msg})"
+
+
+class MarketplacePreset(Enum):
+    """Presets for target marketplaces."""
+    ADOBE_STOCK = "adobe_stock"
+    SHUTTERSTOCK = "shutterstock"
+    FREEPIK = "freepik"
+

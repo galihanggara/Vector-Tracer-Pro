@@ -83,3 +83,9 @@ codesign.env
 # Logs
 logs/
 *.log
+
+# Temp files and installer output
+*.zip
+scratch/
+installer/output/
+

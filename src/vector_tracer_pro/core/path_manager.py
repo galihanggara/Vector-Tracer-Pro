@@ -48,10 +48,16 @@ Typical directory layout on Windows 11
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import uuid
 from pathlib import Path
 from typing import Final
+
+
+def _is_bundled() -> bool:
+    """Check if the application is running from a PyInstaller bundle."""
+    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 from platformdirs import (
     user_cache_dir,
@@ -462,6 +468,38 @@ class PathManager:
         with self._lock:
             path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def get_binary_dir(self) -> Path:
+        """Get the directory containing bundled or dev binaries.
+
+        Returns
+        -------
+        Path
+            The bin/ folder directory.
+        """
+        if _is_bundled():
+            return Path(sys._MEIPASS) / "bin"
+        else:
+            # Resolve project root
+            # path_manager.py is at <project_root>/src/vector_tracer_pro/core/path_manager.py
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
+            return project_root / "bin"
+
+    def get_binary_path(self, name: str) -> str:
+        """Resolve absolute path to a binary under get_binary_dir() or fall back to name.
+
+        On Windows, appends .exe if not present.
+        """
+        # If the input is already a full path, use it directly
+        if Path(name).is_absolute():
+            return name
+
+        pure_name = Path(name).stem
+        binary_name = f"{pure_name}.exe" if sys.platform == "win32" else pure_name
+        local_path = self.get_binary_dir() / binary_name
+        if local_path.exists():
+            return str(local_path)
+        return name
 
     # ------------------------------------------------------------------
     # Dunder methods
