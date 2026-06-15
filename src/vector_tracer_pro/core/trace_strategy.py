@@ -385,7 +385,7 @@ class VTracerTracingStrategy(TracingStrategy):
             str(tparams.filter_speckle),
             "--color_precision",
             str(tparams.color_precision),
-            "--layer_difference",
+            "--gradient_step",
             str(tparams.layer_difference),
         ]
 

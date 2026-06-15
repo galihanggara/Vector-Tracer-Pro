@@ -302,8 +302,8 @@ class TestVTracerTracingStrategy:
         assert args[args.index("--filter_speckle") + 1] == "10"
         assert "--color_precision" in args
         assert args[args.index("--color_precision") + 1] == "5"
-        assert "--layer_difference" in args
-        assert args[args.index("--layer_difference") + 1] == "20"
+        assert "--gradient_step" in args
+        assert args[args.index("--gradient_step") + 1] == "20"
 
     @patch("vector_tracer_pro.core.trace_strategy.DependencyChecker")
     def test_vtracer_missing_dependency(self, mock_checker, tmp_path):
