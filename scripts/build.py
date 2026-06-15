@@ -76,6 +76,49 @@ def main() -> None:
     print(f"Size   : {size_mb:.1f} MB")
     print(f"Version: {args.version}")
 
+    # 5. Kompilasi installer Inno Setup (jika ISCC tersedia)
+    import os
+    iscc_paths = [
+        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6\ISCC.exe",
+        # Inno Setup 6.7+ via winget may install to a different location
+        r"C:\Program Files (x86)\Inno Setup 6.7\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6.7\ISCC.exe",
+        # winget sometimes installs with minor version in folder name
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Inno Setup 6\ISCC.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Inno Setup 6\ISCC.exe"),
+    ]
+    # Also try shutil.which in case it's on PATH
+    import shutil as _shutil
+    iscc_on_path = _shutil.which("ISCC")
+    if iscc_on_path:
+        iscc_paths.insert(0, iscc_on_path)
+
+    iscc = next((p for p in iscc_paths if Path(p).exists()), None)
+
+    if iscc:
+        print(f"\n=== Compiling Inno Setup installer (using {iscc}) ===")
+        installer_output = ROOT / "installer" / "output"
+        installer_output.mkdir(parents=True, exist_ok=True)
+        code = run([iscc, str(ROOT / "installer" / "setup.iss")])
+        if code == 0:
+            setup_exe = next(installer_output.glob("*.exe"), None)
+            if setup_exe:
+                size_mb_installer = setup_exe.stat().st_size / 1e6
+                print(f"Installer : {setup_exe}")
+                print(f"Size      : {size_mb_installer:.1f} MB")
+            else:
+                print("WARNING: Installer compiled but no .exe found in installer/output/")
+        else:
+            print("WARNING: Inno Setup compilation failed — installer not created")
+    else:
+        print("\nINFO: Inno Setup (ISCC.exe) not found — skipping installer compilation")
+        print("      Download: https://jrsoftware.org/isdl.php")
+        print("      Or run: winget install --id JRSoftware.InnoSetup -e")
+
 
 if __name__ == "__main__":
     main()
+
+
