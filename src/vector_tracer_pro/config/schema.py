@@ -61,21 +61,15 @@ class BinariesConfig(BaseModel):
 class PreprocessorConfig(BaseModel):
     """Image preprocessing parameters."""
 
-    max_dimension_px: Annotated[int, Field(ge=256, le=16384)] = (
-        defaults.PREPROCESS_MAX_DIMENSION_PX
-    )
-    quantise_colours: Annotated[int, Field(ge=2, le=256)] = (
-        defaults.PREPROCESS_QUANTISE_COLOURS
-    )
+    max_dimension_px: Annotated[int, Field(ge=256, le=16384)] = defaults.PREPROCESS_MAX_DIMENSION_PX
+    quantise_colours: Annotated[int, Field(ge=2, le=256)] = defaults.PREPROCESS_QUANTISE_COLOURS
     denoise_radius: Annotated[int, Field(ge=0, le=5)] = defaults.PREPROCESS_DENOISE_RADIUS
 
 
 class ClassifierConfig(BaseModel):
     """Thresholds used by the image type classifier."""
 
-    colour_simple_threshold: Annotated[int, Field(ge=2, le=256)] = (
-        defaults.COLOUR_SIMPLE_THRESHOLD
-    )
+    colour_simple_threshold: Annotated[int, Field(ge=2, le=256)] = defaults.COLOUR_SIMPLE_THRESHOLD
     greyscale_saturation_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = (
         defaults.GREYSCALE_SATURATION_THRESHOLD
     )
@@ -140,7 +134,7 @@ class MarketplacePreviewDimensions(BaseModel):
     min_height_px: Annotated[int, Field(ge=100)] = 1000
 
     @model_validator(mode="after")
-    def check_area(self) -> "MarketplacePreviewDimensions":
+    def check_area(self) -> MarketplacePreviewDimensions:
         if self.min_width_px * self.min_height_px < 100 * 100:
             raise ValueError("Preview dimensions are too small.")
         return self
@@ -223,7 +217,7 @@ class AppConfig(BaseModel):
     # ---------------------------------------------------------------------------
 
     @classmethod
-    def load(cls, config_path: Path) -> "AppConfig":
+    def load(cls, config_path: Path) -> AppConfig:
         """Load configuration from *config_path*.
 
         If the file does not exist, returns an ``AppConfig`` with all
@@ -251,16 +245,12 @@ class AppConfig(BaseModel):
         try:
             raw = json.loads(config_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            raise ConfigError(
-                f"Config file is not valid JSON: {config_path}"
-            ) from exc
+            raise ConfigError(f"Config file is not valid JSON: {config_path}") from exc
 
         try:
             return cls.model_validate(raw)
         except Exception as exc:
-            raise ConfigError(
-                f"Config file failed validation: {config_path}\n{exc}"
-            ) from exc
+            raise ConfigError(f"Config file failed validation: {config_path}\n{exc}") from exc
 
     def save(self, config_path: Path) -> None:
         """Persist current configuration to *config_path*.

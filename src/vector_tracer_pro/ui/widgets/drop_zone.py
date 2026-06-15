@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent, QMouseEvent
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLabel, QWidget
 
 logger = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ class DropZoneWidget(QWidget):
         """
         self.setStyleSheet(self.idle_style)
 
-    def mousePressEvent(self, event) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         """Handle mouse click to open the file selection dialog."""
         if event.button() == Qt.MouseButton.LeftButton:
             files, _ = QFileDialog.getOpenFileNames(
@@ -71,7 +73,7 @@ class DropZoneWidget(QWidget):
         else:
             super().mousePressEvent(event)
 
-    def dragEnterEvent(self, event) -> None:
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
         """Handle drag enter event and filter for image files."""
         if event.mimeData().hasUrls():
             has_valid_file = False
@@ -86,12 +88,12 @@ class DropZoneWidget(QWidget):
         else:
             event.ignore()
 
-    def dragLeaveEvent(self, event) -> None:
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:  # noqa: N802
         """Reset styling when the drag leaves the widget bounds."""
         self.setStyleSheet(self.idle_style)
         event.accept()
 
-    def dropEvent(self, event) -> None:
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
         """Extract dropped local paths and emit the signal."""
         self.setStyleSheet(self.idle_style)
         urls = event.mimeData().urls()

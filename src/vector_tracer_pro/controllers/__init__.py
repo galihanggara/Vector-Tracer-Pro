@@ -1,1 +1,1 @@
-﻿"""Controller layer — mediators between UI and services."""
+"""Controller layer — mediators between UI and services."""

@@ -7,15 +7,15 @@ Unit tests for :mod:`vector_tracer_pro.core.pipeline`.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-import pytest
-import numpy as np
 
+import numpy as np
+import pytest
+
+from vector_tracer_pro.core.image.bitmapper import BitmapFile, BitmapFormat
 from vector_tracer_pro.core.image.classifier import ImageCategory
 from vector_tracer_pro.core.image.loader import ImageData, ImageMetadata
 from vector_tracer_pro.core.image.preprocessor import PreprocessConfig, ProcessedImage
-from vector_tracer_pro.core.image.bitmapper import BitmapFile, BitmapFormat
 from vector_tracer_pro.core.marketplace_validator import MarketplacePreset, ValidationReport
 from vector_tracer_pro.core.pipeline import Pipeline, PipelineResult
 
@@ -72,18 +72,21 @@ class TestPipeline:
             format=BitmapFormat.PNG,
             source_category=ImageCategory.FLAT_VECTOR,
         )
-        
+
         # Mock context manager write()
         import contextlib
+
         @contextlib.contextmanager
         def mock_write(processed, fmt):
             yield mock_bmp_file
+
         mock_bitmapper.write.side_effect = mock_write
 
         # 5. Setup TraceStrategySelector & Strategy mock
         mock_selector = mock_selector_cls.return_value
         mock_strategy = MagicMock()
         from vector_tracer_pro.core.trace_strategy import TraceEngine
+
         mock_strategy.primary_engine = TraceEngine.INKSCAPE
         mock_selector.select.return_value = mock_strategy
 
@@ -99,6 +102,7 @@ class TestPipeline:
 
         # 7. Setup progress tracking callback
         progress_calls = []
+
         def on_progress(step: str, pct: int) -> None:
             progress_calls.append((step, pct))
 
@@ -134,10 +138,12 @@ class TestPipeline:
         mock_preprocessor.process.assert_called_once()
         mock_bitmapper.write.assert_called_once()
         mock_selector.select.assert_called_once()
-        
+
         expected_svg_path = output_dir / "input.svg"
         mock_strategy.execute.assert_called_once_with(mock_bmp_file.path, expected_svg_path, None)
-        mock_validator.validate.assert_called_once_with(expected_svg_path, MarketplacePreset.ADOBE_STOCK)
+        mock_validator.validate.assert_called_once_with(
+            expected_svg_path, MarketplacePreset.ADOBE_STOCK
+        )
 
         # 11. Asserts on PipelineResult
         assert isinstance(result, PipelineResult)

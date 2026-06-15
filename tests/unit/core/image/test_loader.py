@@ -8,15 +8,16 @@ Unit tests for the new NumPy-based ImageLoader.
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
+
 import numpy as np
+import pytest
 
 from vector_tracer_pro.core.exceptions import (
     CorruptImageError,
     ImageSizeError,
     UnsupportedFormatError,
 )
-from vector_tracer_pro.core.image.loader import ImageLoader, ImageData
+from vector_tracer_pro.core.image.loader import ImageData, ImageLoader
 
 
 @pytest.fixture
@@ -32,13 +33,13 @@ def loader() -> ImageLoader:
 def test_load_valid_rgb(loader: ImageLoader, fixtures_dir: Path):
     path = fixtures_dir / "valid_rgb.jpg"
     res = loader.load(path)
-    
+
     assert isinstance(res, ImageData)
     assert isinstance(res.data, np.ndarray)
     assert res.data.dtype == np.float32
     assert res.data.shape == (200, 200, 3)
     assert np.all(res.data >= 0.0) and np.all(res.data <= 1.0)
-    
+
     meta = res.metadata
     assert meta.width == 200
     assert meta.height == 200
@@ -51,7 +52,7 @@ def test_load_valid_rgb(loader: ImageLoader, fixtures_dir: Path):
 def test_load_valid_rgba(loader: ImageLoader, fixtures_dir: Path):
     path = fixtures_dir / "valid_rgba.png"
     res = loader.load(path)
-    
+
     assert res.data.shape == (200, 200, 3)  # always RGB
     assert res.metadata.original_mode == "RGBA"
     assert res.metadata.bit_depth == 8
@@ -60,7 +61,7 @@ def test_load_valid_rgba(loader: ImageLoader, fixtures_dir: Path):
 def test_load_valid_grayscale(loader: ImageLoader, fixtures_dir: Path):
     path = fixtures_dir / "valid_grayscale.png"
     res = loader.load(path)
-    
+
     assert res.data.shape == (200, 200, 3)  # always RGB
     assert res.metadata.original_mode == "L"
     assert res.metadata.bit_depth == 8
@@ -76,7 +77,7 @@ def test_load_too_small(loader: ImageLoader, fixtures_dir: Path):
     path = fixtures_dir / "too_small.png"
     with pytest.raises(ImageSizeError) as exc_info:
         loader.load(path)
-    
+
     exc = exc_info.value
     assert exc.width == 4
     assert exc.height == 4
@@ -90,7 +91,7 @@ def test_load_too_large(fixtures_dir: Path):
     path = fixtures_dir / "valid_rgb.jpg"
     with pytest.raises(ImageSizeError) as exc_info:
         strict_loader.load(path)
-    
+
     exc = exc_info.value
     assert exc.width == 200
     assert exc.height == 200
@@ -109,5 +110,5 @@ def test_load_unsupported_format(loader: ImageLoader, tmp_path: Path):
     unsupported_path.write_text("Not an image")
     with pytest.raises(UnsupportedFormatError) as exc_info:
         loader.load(unsupported_path)
-    
+
     assert exc_info.value.detected_format == "txt"

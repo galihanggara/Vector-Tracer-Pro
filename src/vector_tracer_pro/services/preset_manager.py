@@ -17,10 +17,10 @@ class TracingPreset:
     """Dataclass holding all configurations for a custom vectorisation preset."""
 
     name: str
-    marketplace: str          # "adobe_stock" | "shutterstock" | "freepik"
-    engine_order: list[str]   # ["potrace", "vtracer", "inkscape"]
-    preprocess_config: dict   # serialized PreprocessConfig
-    trace_params: dict        # serialized TraceParams
+    marketplace: str  # "adobe_stock" | "shutterstock" | "freepik"
+    engine_order: list[str]  # ["potrace", "vtracer", "inkscape"]
+    preprocess_config: dict  # serialized PreprocessConfig
+    trace_params: dict  # serialized TraceParams
 
 
 class PresetManager:
@@ -70,7 +70,7 @@ class PresetManager:
         file_path = self.config_dir / f"{name}.json"
         if not file_path.exists():
             raise FileNotFoundError(f"Preset '{name}' not found.")
-        
+
         data = json.loads(file_path.read_text(encoding="utf-8"))
         return TracingPreset(
             name=data["name"],

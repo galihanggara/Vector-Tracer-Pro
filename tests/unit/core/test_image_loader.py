@@ -20,8 +20,7 @@ from vector_tracer_pro.core.exceptions import (
     ImageTooSmallError,
     UnsupportedFormatError,
 )
-from vector_tracer_pro.core.image_loader import ImageLoader, ImageMetadata, LoadedImage
-
+from vector_tracer_pro.core.image_loader import ImageLoader, LoadedImage
 
 # ===========================================================================
 # Fixtures
@@ -30,7 +29,7 @@ from vector_tracer_pro.core.image_loader import ImageLoader, ImageMetadata, Load
 
 @pytest.fixture(scope="session")
 def large_jpg(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """1000×800 RGB JPEG — passes all validation."""
+    """1000x800 RGB JPEG — passes all validation."""
     p = tmp_path_factory.mktemp("loader") / "large.jpg"
     Image.new("RGB", (1000, 800), color=(200, 100, 50)).save(p, format="JPEG")
     return p
@@ -38,7 +37,7 @@ def large_jpg(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(scope="session")
 def large_png(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """1000×800 RGBA PNG — passes all validation."""
+    """1000x800 RGBA PNG — passes all validation."""
     p = tmp_path_factory.mktemp("loader") / "large.png"
     Image.new("RGBA", (1000, 800), color=(50, 100, 200, 255)).save(p, format="PNG")
     return p
@@ -46,7 +45,7 @@ def large_png(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(scope="session")
 def tiny_jpg(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """50×50 JPEG — too small to pass the minimum dimension check."""
+    """50x50 JPEG — too small to pass the minimum dimension check."""
     p = tmp_path_factory.mktemp("loader") / "tiny.jpg"
     Image.new("RGB", (50, 50)).save(p, format="JPEG")
     return p
@@ -70,7 +69,7 @@ def corrupt_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture
 def loader() -> ImageLoader:
-    """ImageLoader with default settings (min 500×500)."""
+    """ImageLoader with default settings (min 500x500)."""
     return ImageLoader(min_width_px=500, min_height_px=500)
 
 
@@ -81,70 +80,48 @@ def loader() -> ImageLoader:
 
 @pytest.mark.unit
 class TestImageLoaderSuccess:
-    def test_load_jpeg_returns_loaded_image(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_load_jpeg_returns_loaded_image(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert isinstance(result, LoadedImage)
 
-    def test_load_png_returns_loaded_image(
-        self, loader: ImageLoader, large_png: Path
-    ) -> None:
+    def test_load_png_returns_loaded_image(self, loader: ImageLoader, large_png: Path) -> None:
         result = loader.load(large_png)
         assert isinstance(result, LoadedImage)
 
-    def test_jpeg_metadata_format_is_jpeg(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_jpeg_metadata_format_is_jpeg(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert result.metadata.original_format == "JPEG"
 
-    def test_png_metadata_format_is_png(
-        self, loader: ImageLoader, large_png: Path
-    ) -> None:
+    def test_png_metadata_format_is_png(self, loader: ImageLoader, large_png: Path) -> None:
         result = loader.load(large_png)
         assert result.metadata.original_format == "PNG"
 
-    def test_metadata_dimensions_match_actual(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_metadata_dimensions_match_actual(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert result.metadata.width == 1000
         assert result.metadata.height == 800
 
-    def test_metadata_path_is_absolute(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_metadata_path_is_absolute(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert result.metadata.path.is_absolute()
 
-    def test_metadata_file_size_positive(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_metadata_file_size_positive(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert result.metadata.file_size_bytes > 0
 
-    def test_png_rgba_has_transparency(
-        self, loader: ImageLoader, large_png: Path
-    ) -> None:
+    def test_png_rgba_has_transparency(self, loader: ImageLoader, large_png: Path) -> None:
         result = loader.load(large_png)
         assert result.metadata.has_transparency is True
 
-    def test_jpeg_rgb_no_transparency(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_jpeg_rgb_no_transparency(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert result.metadata.has_transparency is False
 
-    def test_image_object_is_pil_image(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_image_object_is_pil_image(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         assert isinstance(result.image, Image.Image)
 
-    def test_load_does_not_mutate_original(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_load_does_not_mutate_original(self, loader: ImageLoader, large_jpg: Path) -> None:
         """Loading should not close or alter the image on disk."""
         size_before = large_jpg.stat().st_size
         loader.load(large_jpg)
@@ -159,16 +136,12 @@ class TestImageLoaderSuccess:
 
 @pytest.mark.unit
 class TestImageMetadata:
-    def test_megapixels_computed_correctly(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_megapixels_computed_correctly(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         expected = (1000 * 800) / 1_000_000
         assert abs(result.metadata.megapixels - expected) < 0.001
 
-    def test_aspect_ratio_computed_correctly(
-        self, loader: ImageLoader, large_jpg: Path
-    ) -> None:
+    def test_aspect_ratio_computed_correctly(self, loader: ImageLoader, large_jpg: Path) -> None:
         result = loader.load(large_jpg)
         expected = 1000 / 800
         assert abs(result.metadata.aspect_ratio - expected) < 0.01
@@ -187,9 +160,7 @@ class TestImageMetadata:
 
 @pytest.mark.unit
 class TestFormatValidation:
-    def test_bmp_raises_unsupported_format_error(
-        self, loader: ImageLoader, bmp_file: Path
-    ) -> None:
+    def test_bmp_raises_unsupported_format_error(self, loader: ImageLoader, bmp_file: Path) -> None:
         with pytest.raises(UnsupportedFormatError) as exc_info:
             loader.load(bmp_file)
         assert exc_info.value.detected_format == "BMP"
@@ -234,10 +205,8 @@ class TestDimensionValidation:
         assert exc.min_width == 500
         assert exc.min_height == 500
 
-    def test_custom_minimum_can_accept_small_images(
-        self, tiny_jpg: Path
-    ) -> None:
-        """A loader with min 10×10 should accept the 50×50 image."""
+    def test_custom_minimum_can_accept_small_images(self, tiny_jpg: Path) -> None:
+        """A loader with min 10x10 should accept the 50x50 image."""
         small_loader = ImageLoader(min_width_px=10, min_height_px=10)
         result = small_loader.load(tiny_jpg)
         assert result.metadata.width == 50

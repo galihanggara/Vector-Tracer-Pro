@@ -13,13 +13,11 @@ import pytest
 from PIL import Image
 
 from vector_tracer_pro.core.classifier import ImageType
-from vector_tracer_pro.core.exceptions import PreprocessingError
 from vector_tracer_pro.core.preprocessor import (
     ImagePreprocessor,
     ProcessedImage,
     ProcessingStep,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -131,7 +129,7 @@ class TestResize:
         big = _large_rgb(6000)
         result = prep.preprocess(big, ImageType.COLOUR_COMPLEX)
         assert ProcessingStep.RESIZE in result.steps_applied
-        assert max(result.processed_size) <= prep._max_dimension_px  # noqa: SLF001
+        assert max(result.processed_size) <= prep._max_dimension_px
 
     def test_small_image_is_not_resized(self, prep: ImagePreprocessor) -> None:
         small = _rgb(400, 300)
@@ -194,9 +192,7 @@ class TestMonochromePipeline:
         """After threshold, all pixel values should be 0 or 255."""
         result = prep.preprocess(_rgb(100, 100), ImageType.MONOCHROME)
         pixels = list(result.image.get_flattened_data())
-        assert all(p in (0, 255) for p in pixels), (
-            f"Non-binary pixels found: {set(pixels)}"
-        )
+        assert all(p in (0, 255) for p in pixels), f"Non-binary pixels found: {set(pixels)}"
 
 
 # ===========================================================================
@@ -206,15 +202,11 @@ class TestMonochromePipeline:
 
 @pytest.mark.unit
 class TestGreyscalePipeline:
-    def test_greyscale_does_not_include_threshold(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_greyscale_does_not_include_threshold(self, prep: ImagePreprocessor) -> None:
         result = prep.preprocess(_rgb(), ImageType.GREYSCALE)
         assert ProcessingStep.THRESHOLD not in result.steps_applied
 
-    def test_greyscale_includes_convert_greyscale(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_greyscale_includes_convert_greyscale(self, prep: ImagePreprocessor) -> None:
         result = prep.preprocess(_rgb(), ImageType.GREYSCALE)
         assert ProcessingStep.CONVERT_GREYSCALE in result.steps_applied
 
@@ -222,9 +214,7 @@ class TestGreyscalePipeline:
         result = prep.preprocess(_rgb(), ImageType.GREYSCALE)
         assert result.image.mode == "L"
 
-    def test_greyscale_with_denoising_includes_denoise(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_greyscale_with_denoising_includes_denoise(self, prep: ImagePreprocessor) -> None:
         result = prep.preprocess(_rgb(), ImageType.GREYSCALE)
         # prep has denoise_radius=1 (default), so DENOISE should be present
         assert ProcessingStep.DENOISE in result.steps_applied
@@ -251,9 +241,7 @@ class TestColourSimplePipeline:
         result = prep.preprocess(_rgb(), ImageType.COLOUR_SIMPLE)
         assert result.image.mode == "RGB"
 
-    def test_colour_simple_reduces_unique_colours(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_colour_simple_reduces_unique_colours(self, prep: ImagePreprocessor) -> None:
         """Quantising a gradient should produce fewer unique colours."""
         gradient = Image.new("RGB", (100, 100))
         pix = gradient.load()
@@ -267,9 +255,7 @@ class TestColourSimplePipeline:
         after_count = len(set(result.image.get_flattened_data()))
         assert after_count < before_count
 
-    def test_colour_simple_does_not_include_denoise(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_colour_simple_does_not_include_denoise(self, prep: ImagePreprocessor) -> None:
         result = prep.preprocess(_rgb(), ImageType.COLOUR_SIMPLE)
         assert ProcessingStep.DENOISE not in result.steps_applied
 
@@ -281,9 +267,7 @@ class TestColourSimplePipeline:
 
 @pytest.mark.unit
 class TestColourComplexPipeline:
-    def test_colour_complex_includes_quantise_and_denoise(
-        self, prep: ImagePreprocessor
-    ) -> None:
+    def test_colour_complex_includes_quantise_and_denoise(self, prep: ImagePreprocessor) -> None:
         result = prep.preprocess(_rgb(), ImageType.COLOUR_COMPLEX)
         assert ProcessingStep.QUANTISE in result.steps_applied
         assert ProcessingStep.DENOISE in result.steps_applied

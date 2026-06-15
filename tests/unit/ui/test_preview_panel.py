@@ -7,8 +7,8 @@ Unit tests for PreviewPanel.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import patch
+
 import pytest
 from PySide6.QtGui import QPixmap
 from PySide6.QtSvgWidgets import QSvgWidget
@@ -35,13 +35,15 @@ class TestPreviewPanel:
 
         # Create dummy image path
         img_path = tmp_path / "test.png"
-        
+
         # Mock QPixmap constructor/loading
-        with patch.object(QPixmap, "load", return_value=True):
-            with patch.object(QPixmap, "isNull", return_value=False):
-                with patch.object(QPixmap, "width", return_value=800):
-                    with patch.object(QPixmap, "height", return_value=600):
-                        panel.show_original(img_path)
+        with (
+            patch.object(QPixmap, "load", return_value=True),
+            patch.object(QPixmap, "isNull", return_value=False),
+            patch.object(QPixmap, "width", return_value=800),
+            patch.object(QPixmap, "height", return_value=600),
+        ):
+            panel.show_original(img_path)
 
         assert panel.left_info.text() == "test.png (800x600)"
         assert panel.original_label.pixmap() is not None
@@ -55,7 +57,7 @@ class TestPreviewPanel:
 
         with patch.object(QSvgWidget, "load", return_value=True) as mock_load:
             panel.show_result(svg_path)
-            
+
             assert panel.svg_widget is not None
             assert panel.right_info.text() == "test.svg (0.0 KB)"
             mock_load.assert_called_once_with(str(svg_path))
@@ -69,9 +71,11 @@ class TestPreviewPanel:
         svg_path = tmp_path / "test.svg"
         svg_path.write_text("<svg></svg>")
 
-        with patch.object(QPixmap, "load", return_value=True):
-            with patch.object(QPixmap, "isNull", return_value=False):
-                panel.show_original(img_path)
+        with (
+            patch.object(QPixmap, "load", return_value=True),
+            patch.object(QPixmap, "isNull", return_value=False),
+        ):
+            panel.show_original(img_path)
 
         with patch.object(QSvgWidget, "load", return_value=True):
             panel.show_result(svg_path)

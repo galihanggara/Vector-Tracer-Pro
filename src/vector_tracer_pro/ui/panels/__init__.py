@@ -1,1 +1,1 @@
-﻿"""UI panel widgets."""
+"""UI panel widgets."""

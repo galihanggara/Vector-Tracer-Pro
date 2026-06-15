@@ -16,4 +16,4 @@ except PackageNotFoundError:
 __author__: str = "Vector Tracer Pro Team"
 __license__: str = "MIT"
 
-__all__: list[str] = ["__version__", "__author__", "__license__"]
+__all__: list[str] = ["__author__", "__license__", "__version__"]

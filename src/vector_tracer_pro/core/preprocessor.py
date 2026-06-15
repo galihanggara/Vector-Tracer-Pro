@@ -43,10 +43,10 @@ from enum import Enum, auto
 from PIL import Image, ImageFilter
 
 from vector_tracer_pro.config.defaults import (
+    POTRACE_BLACKLEVEL,
     PREPROCESS_DENOISE_RADIUS,
     PREPROCESS_MAX_DIMENSION_PX,
     PREPROCESS_QUANTISE_COLOURS,
-    POTRACE_BLACKLEVEL,
 )
 from vector_tracer_pro.core.classifier import ImageType
 from vector_tracer_pro.core.exceptions import PreprocessingError
@@ -126,8 +126,8 @@ class ProcessedImage:
         steps = ", ".join(s.name for s in self.steps_applied)
         return (
             f"ProcessedImage("
-            f"{self.original_size[0]}×{self.original_size[1]}px → "
-            f"{self.processed_size[0]}×{self.processed_size[1]}px, "
+            f"{self.original_size[0]}x{self.original_size[1]}px -> "
+            f"{self.processed_size[0]}x{self.processed_size[1]}px, "
             f"steps=[{steps}])"
         )
 
@@ -152,7 +152,7 @@ class ImagePreprocessor:
         Radius for the median-filter denoising pass.  ``0`` disables
         denoising.  Default: 1.
     blacklevel:
-        Threshold (0.0 – 1.0) used when binarising greyscale images for
+        Threshold (0.0 - 1.0) used when binarising greyscale images for
         Potrace.  Pixels darker than this value become black.  Default: 0.5.
 
     Examples
@@ -247,9 +247,7 @@ class ImagePreprocessor:
                 steps.extend(complex_steps)
 
         except Exception as exc:
-            raise PreprocessingError(
-                f"Preprocessing failed for {image_type.value}: {exc}"
-            ) from exc
+            raise PreprocessingError(f"Preprocessing failed for {image_type.value}: {exc}") from exc
 
         processed_size = (img.width, img.height)
         result = ProcessedImage(
@@ -340,9 +338,7 @@ class ImagePreprocessor:
     # Atomic transformation helpers
     # ------------------------------------------------------------------
 
-    def _resize_if_needed(
-        self, image: Image.Image
-    ) -> tuple[Image.Image, bool]:
+    def _resize_if_needed(self, image: Image.Image) -> tuple[Image.Image, bool]:
         """Proportionally resize *image* if the longest edge exceeds the cap.
 
         Returns
@@ -360,13 +356,15 @@ class ImagePreprocessor:
         resized = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
         logger.debug(
             "Resized %dx%d → %dx%d (scale %.3f)",
-            image.width, image.height, new_w, new_h, scale,
+            image.width,
+            image.height,
+            new_w,
+            new_h,
+            scale,
         )
         return resized, True
 
-    def _flatten_alpha(
-        self, image: Image.Image
-    ) -> tuple[Image.Image, bool]:
+    def _flatten_alpha(self, image: Image.Image) -> tuple[Image.Image, bool]:
         """Composite RGBA or LA images onto a white background.
 
         Potrace and Inkscape tracing engines do not handle transparent
@@ -403,7 +401,7 @@ class ImagePreprocessor:
     def _threshold(self, image: Image.Image) -> Image.Image:
         """Binarise a greyscale image using :attr:`_blacklevel`.
 
-        Pixels with value <= ``blacklevel × 255`` become black (0);
+        Pixels with value <= ``blacklevel x 255`` become black (0);
         all other pixels become white (255).  Result is ``"L"`` mode
         (not ``"1"``), as Pillow's 1-bit mode has limited filter support.
 

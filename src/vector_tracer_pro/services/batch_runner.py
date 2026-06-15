@@ -8,10 +8,11 @@ Runs vectorisation pipeline jobs concurrently using thread pool execution.
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from vector_tracer_pro.services.preset_manager import TracingPreset
 
@@ -24,7 +25,7 @@ class BatchJob:
     input_path: Path
     output_dir: Path
     preset: TracingPreset
-    status: str = "pending"   # pending | running | done | failed
+    status: str = "pending"  # pending | running | done | failed
     error: str | None = None
 
 
@@ -73,7 +74,6 @@ class BatchRunner:
             self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
             self._futures = []
 
-
             for job in jobs:
                 job.status = "pending"
                 job.error = None
@@ -92,10 +92,10 @@ class BatchRunner:
         on_job_done: Callable[[BatchJob], None] | None = None,
     ) -> None:
         """Execute a single BatchJob in a worker thread."""
-        from vector_tracer_pro.core.pipeline import Pipeline
         from vector_tracer_pro.core.image.preprocessor import PreprocessConfig
-        from vector_tracer_pro.core.trace_strategy import TraceParams
         from vector_tracer_pro.core.marketplace_validator import MarketplacePreset
+        from vector_tracer_pro.core.pipeline import Pipeline
+        from vector_tracer_pro.core.trace_strategy import TraceParams
 
         pipeline = Pipeline()
         preset = job.preset
@@ -146,10 +146,7 @@ class BatchRunner:
                         job.status = "failed"
                         job.error = "Cancelled"
                         if getattr(self, "_on_job_done", None):
-                            try:
+                            with contextlib.suppress(Exception):
                                 self._on_job_done(job)
-                            except Exception:
-                                pass
             if self._executor:
                 self._executor.shutdown(wait=False, cancel_futures=True)
-

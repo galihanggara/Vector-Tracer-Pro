@@ -20,7 +20,6 @@ Usage
 
 from __future__ import annotations
 
-
 # =============================================================================
 # Base
 # =============================================================================
@@ -214,7 +213,6 @@ class ImageSizeError(ImageError):
         self.min_height = min_height
         self.max_width = max_width
         self.max_height = max_height
-
 
 
 # =============================================================================

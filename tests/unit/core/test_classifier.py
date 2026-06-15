@@ -19,7 +19,6 @@ from vector_tracer_pro.core.classifier import (
 )
 from vector_tracer_pro.core.exceptions import ClassificationError
 
-
 # ===========================================================================
 # Fixtures — synthetic test images
 # ===========================================================================
@@ -177,9 +176,7 @@ class TestClassify:
         result = clf.classify(_make_greyscale_image())
         assert isinstance(result, ClassificationResult)
 
-    def test_result_recommended_engine_matches_type(
-        self, clf: ImageClassifier
-    ) -> None:
+    def test_result_recommended_engine_matches_type(self, clf: ImageClassifier) -> None:
         result = clf.classify(_make_complex_colour_image())
         assert result.recommended_engine == result.image_type.recommended_engine
 

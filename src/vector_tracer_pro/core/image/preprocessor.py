@@ -8,11 +8,12 @@ Image preprocessing pipeline for preparing raster images for tracing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
 import numpy as np
 from PIL import Image
 
-from vector_tracer_pro.core.image.loader import ImageData, ImageMetadata
 from vector_tracer_pro.core.image.classifier import ImageCategory
+from vector_tracer_pro.core.image.loader import ImageData, ImageMetadata
 
 
 @dataclass
@@ -193,9 +194,7 @@ class Preprocessor:
 
             # Between-class variance
             var_between = (
-                weight_background
-                * weight_foreground
-                * (mean_background - mean_foreground) ** 2
+                weight_background * weight_foreground * (mean_background - mean_foreground) ** 2
             )
 
             if var_between > current_max:
@@ -237,9 +236,7 @@ class Preprocessor:
                 enhanced[:, :, c] = data[:, :, c]
         return enhanced
 
-    def _resize_max_dimension(
-        self, data: np.ndarray, max_dim: int
-    ) -> tuple[np.ndarray, bool]:
+    def _resize_max_dimension(self, data: np.ndarray, max_dim: int) -> tuple[np.ndarray, bool]:
         """Proportionally resize image if longest edge exceeds max_dim."""
         h, w = data.shape[:2]
         longest = max(h, w)
@@ -286,7 +283,7 @@ class Preprocessor:
 
             new_centroids = np.zeros_like(centroids)
             for i in range(k_actual):
-                mask = (labels == i)
+                mask = labels == i
                 if np.any(mask):
                     new_centroids[i] = np.mean(sample[mask], axis=0)
                 else:

@@ -7,8 +7,8 @@ Unit tests for PresetManager.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
 import pytest
 
 from vector_tracer_pro.services.preset_manager import PresetManager, TracingPreset
@@ -25,14 +25,14 @@ class TestPresetManager:
             preprocess_config={"skip_denoise": True},
             trace_params={"turdsize": 10},
         )
-        
+
         # Save
         manager.save(preset)
-        
+
         # Verify file exists
         expected_file = tmp_path / "test_preset.json"
         assert expected_file.exists()
-        
+
         # Load
         loaded = manager.load("test_preset")
         assert loaded.name == "test_preset"
@@ -50,10 +50,10 @@ class TestPresetManager:
         manager = PresetManager(tmp_path)
         preset1 = TracingPreset("preset_b", "shutterstock", [], {}, {})
         preset2 = TracingPreset("preset_a", "freepik", [], {}, {})
-        
+
         manager.save(preset1)
         manager.save(preset2)
-        
+
         presets = manager.list_presets()
         assert presets == ["preset_a", "preset_b"]
 
@@ -61,15 +61,15 @@ class TestPresetManager:
         manager = PresetManager(tmp_path)
         preset = TracingPreset("to_delete", "freepik", [], {}, {})
         manager.save(preset)
-        
+
         # Verify file exists
         file_path = tmp_path / "to_delete.json"
         assert file_path.exists()
-        
+
         # Delete
         manager.delete("to_delete")
         assert not file_path.exists()
-        
+
         # Delete again raises FileNotFoundError
         with pytest.raises(FileNotFoundError):
             manager.delete("to_delete")

@@ -66,11 +66,11 @@ class TraceParams:
 
     def __post_init__(self) -> None:
         from vector_tracer_pro.core.path_manager import PathManager
+
         pm = PathManager()
         self.potrace_executable = pm.get_binary_path(self.potrace_executable)
         self.vtracer_executable = pm.get_binary_path(self.vtracer_executable)
         self.inkscape_executable = pm.get_binary_path(self.inkscape_executable)
-
 
 
 class TraceEngine(Enum):
@@ -102,10 +102,11 @@ class TracingStrategy(ABC):
         Engine-specific parameters (e.g. turdsize for Potrace, colors for Inkscape).
     """
 
-    def __init__(self, reason: str = "Default tracing strategy", params: dict[str, object] | None = None) -> None:
+    def __init__(
+        self, reason: str = "Default tracing strategy", params: dict[str, object] | None = None
+    ) -> None:
         self.reason: str = reason
         self.params: dict[str, object] = params or {}
-
 
     @property
     @abstractmethod
@@ -164,15 +165,9 @@ class TracingStrategy(ABC):
         pass
 
     def __str__(self) -> str:
-        fallback = (
-            f" → fallback: {self.fallback_engine.value}"
-            if self.fallback_engine
-            else ""
-        )
+        fallback = f" → fallback: {self.fallback_engine.value}" if self.fallback_engine else ""
         return (
-            f"TraceStrategy("
-            f"engine={self.primary_engine.value}{fallback}, "
-            f"reason={self.reason!r})"
+            f"TraceStrategy(engine={self.primary_engine.value}{fallback}, reason={self.reason!r})"
         )
 
 
@@ -218,10 +213,14 @@ class PotraceTracingStrategy(TracingStrategy):
             str(potrace_bin),
             str(input_path),
             "-s",
-            "-t", str(tparams.turdsize),
-            "-a", str(tparams.alphamax),
-            "-O", str(tparams.opttolerance),
-            "-o", str(output_svg_path),
+            "-t",
+            str(tparams.turdsize),
+            "-a",
+            str(tparams.alphamax),
+            "-O",
+            str(tparams.opttolerance),
+            "-o",
+            str(output_svg_path),
         ]
 
         try:
@@ -296,11 +295,15 @@ class InkscapeTracingStrategy(TracingStrategy):
         cmd = [
             str(inkscape_bin),
             str(input_path),
-            "--actions", "select-all;org.inkscape.effect.trace",
-            "--export-filename", str(output_svg_path),
+            "--actions",
+            "select-all;org.inkscape.effect.trace",
+            "--export-filename",
+            str(output_svg_path),
         ]
 
-        timeout = tparams.inkscape_timeout_seconds if hasattr(tparams, "inkscape_timeout_seconds") else 60
+        timeout = (
+            tparams.inkscape_timeout_seconds if hasattr(tparams, "inkscape_timeout_seconds") else 60
+        )
 
         try:
             result = subprocess.run(
@@ -310,9 +313,7 @@ class InkscapeTracingStrategy(TracingStrategy):
                 text=True,
             )
         except subprocess.TimeoutExpired as exc:
-            raise TraceTimeoutError(
-                f"Inkscape process timed out after {timeout} seconds"
-            ) from exc
+            raise TraceTimeoutError(f"Inkscape process timed out after {timeout} seconds") from exc
         except OSError as exc:
             raise TraceExecutionError(
                 f"Failed to execute Inkscape: {exc}", return_code=-1, stderr=str(exc)
@@ -331,7 +332,6 @@ class InkscapeTracingStrategy(TracingStrategy):
                 return_code=result.returncode,
                 stderr=result.stderr or "",
             )
-
 
 
 class VTracerTracingStrategy(TracingStrategy):
@@ -375,12 +375,18 @@ class VTracerTracingStrategy(TracingStrategy):
 
         cmd = [
             str(vtracer_bin),
-            "--input", str(input_path),
-            "--output", str(output_svg_path),
-            "--colormode", str(tparams.colormode),
-            "--filter_speckle", str(tparams.filter_speckle),
-            "--color_precision", str(tparams.color_precision),
-            "--layer_difference", str(tparams.layer_difference),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_svg_path),
+            "--colormode",
+            str(tparams.colormode),
+            "--filter_speckle",
+            str(tparams.filter_speckle),
+            "--color_precision",
+            str(tparams.color_precision),
+            "--layer_difference",
+            str(tparams.layer_difference),
         ]
 
         try:
@@ -414,7 +420,6 @@ class VTracerTracingStrategy(TracingStrategy):
             )
 
 
-
 DEFAULT_FALLBACK_ORDER: list[str] = ["potrace", "vtracer", "inkscape"]
 
 _ENGINE_MAP: dict[str, type[TracingStrategy]] = {
@@ -443,28 +448,24 @@ class FallbackTracingStrategy(TracingStrategy):
         reason: str | None = None,
     ) -> None:
         super().__init__(reason=reason or "Fallback tracing strategy chain")
-        
-        # If order is not provided but primary and fallback are, construct order from them for backwards compat
+
+        # If order is not provided but primary and fallback are, construct order
+        # from them for backwards compatibility
         if order is None and primary is not None:
             self.primary = primary
             self.fallback = fallback
-            
+
             p_val = "primary"
             if hasattr(primary, "primary_engine"):
                 pe = primary.primary_engine
-                if hasattr(pe, "value") and not _is_mock(pe.value):
+                if (hasattr(pe, "value") and not _is_mock(pe.value)) or isinstance(pe, TraceEngine):
                     p_val = pe.value
-                elif isinstance(pe, TraceEngine):
-                    p_val = pe.value
-                    
+
             f_val = "fallback"
-            if fallback is not None:
-                if hasattr(fallback, "primary_engine"):
-                    fe = fallback.primary_engine
-                    if hasattr(fe, "value") and not _is_mock(fe.value):
-                        f_val = fe.value
-                    elif isinstance(fe, TraceEngine):
-                        f_val = fe.value
+            if fallback is not None and hasattr(fallback, "primary_engine"):
+                fe = fallback.primary_engine
+                if (hasattr(fe, "value") and not _is_mock(fe.value)) or isinstance(fe, TraceEngine):
+                    f_val = fe.value
 
             self.strategies = [(p_val, primary)]
             if fallback is not None:
@@ -480,7 +481,8 @@ class FallbackTracingStrategy(TracingStrategy):
                 if strategy_class is not None:
                     strat_inst = strategy_class()
                     self.strategies.append((name, strat_inst))
-                    # Assign primary/fallback properties dynamically for backward compatibility checks
+                    # Assign primary/fallback properties dynamically for
+                    # backward compatibility checks
                     if self.primary is None:
                         self.primary = strat_inst
                     elif self.fallback is None:
@@ -528,9 +530,12 @@ class FallbackTracingStrategy(TracingStrategy):
         output_svg_path: Path,
         params: TraceParams | None = None,
     ) -> None:
-        """Try strategies in the order list, fall back to next on TracingError or DependencyMissingError."""
+        """Try strategies in the order list.
+
+        Falls back to the next engine on TracingError or DependencyMissingError.
+        """
         errors: list[tuple[str, str]] = []
-        
+
         for engine_name in self.order:
             # Check if we have pre-instantiated strategy or mock in self.strategies
             strategy = None
@@ -538,7 +543,7 @@ class FallbackTracingStrategy(TracingStrategy):
                 if name == engine_name:
                     strategy = strat
                     break
-            
+
             if strategy is None:
                 strategy_class = _ENGINE_MAP.get(engine_name)
                 if strategy_class is None:
@@ -559,10 +564,8 @@ class FallbackTracingStrategy(TracingStrategy):
                 continue
 
         raise TraceFailedError(
-            "All engines failed.\n" +
-            "\n".join(f"  [{name}]: {err}" for name, err in errors)
+            "All engines failed.\n" + "\n".join(f"  [{name}]: {err}" for name, err in errors)
         )
-
 
 
 # ---------------------------------------------------------------------------

@@ -7,9 +7,9 @@ Pure Python/NumPy-based image loading and ingestion module.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 from PIL import Image
 
@@ -116,7 +116,7 @@ class ImageLoader:
             raise FileNotFoundError(f"Path is not a file: {path}")
 
         try:
-            with open(path, "rb") as f:
+            with path.open("rb"):
                 pass
         except OSError as exc:
             raise PermissionError(f"Image file is not readable: {path}") from exc

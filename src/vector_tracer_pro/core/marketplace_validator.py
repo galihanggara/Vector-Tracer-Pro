@@ -15,7 +15,7 @@ The pipeline hard-fails and does not export when any VERIFIED rule fails.
 * No embedded raster ``<image>`` elements
 * Valid ``http://www.w3.org/2000/svg`` namespace
 * File size within the marketplace hard limit
-* JPG preview minimum pixel dimensions (width × height)
+* JPG preview minimum pixel dimensions (width x height)
 
 Heuristic Recommendations (advisory — ``ValidationTier.HEURISTIC``)
 --------------------------------------------------------------------
@@ -66,13 +66,11 @@ Usage (Sprint 4+)
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 from typing import Final
-import xml.etree.ElementTree as ET
-
-
 
 # ===========================================================================
 # Enumerations
@@ -179,8 +177,7 @@ class ValidationResult:
     def is_compliant(self) -> bool:
         """``True`` if no VERIFIED rules failed."""
         return not any(
-            i.tier is ValidationTier.VERIFIED and i.status is RuleStatus.FAIL
-            for i in self.issues
+            i.tier is ValidationTier.VERIFIED and i.status is RuleStatus.FAIL for i in self.issues
         )
 
     @property
@@ -369,7 +366,10 @@ class MarketplaceValidator:
                 ValidationIssue(
                     tier=ValidationTier.VERIFIED,
                     rule_id="file_size",
-                    message=f"SVG file size ({file_size_mb:.2f} MB) exceeds limit of {spec.max_svg_size_mb:.2f} MB.",
+                    message=(
+                        f"SVG file size ({file_size_mb:.2f} MB) "
+                        f"exceeds limit of {spec.max_svg_size_mb:.2f} MB."
+                    ),
                     status=RuleStatus.FAIL,
                     marketplace=marketplace,
                 )
@@ -387,10 +387,11 @@ class MarketplaceValidator:
 
         # 2. Well-formed SVG XML & Namespaces & Elements (VERIFIED & HEURISTIC)
         from lxml import etree
+
         try:
             tree = etree.parse(str(svg_path))
             root = tree.getroot()
-            
+
             issues.append(
                 ValidationIssue(
                     tier=ValidationTier.VERIFIED,
@@ -408,7 +409,9 @@ class MarketplaceValidator:
                     ValidationIssue(
                         tier=ValidationTier.VERIFIED,
                         rule_id="svg_namespace",
-                        message=f"Invalid root tag namespace. Expected {{{svg_ns}}}svg, got {root.tag}.",
+                        message=(
+                            f"Invalid root tag namespace. Expected {{{svg_ns}}}svg, got {root.tag}."
+                        ),
                         status=RuleStatus.FAIL,
                         marketplace=marketplace,
                     )
@@ -442,7 +445,7 @@ class MarketplaceValidator:
                     if ext in (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"):
                         raster_found = True
                         break
-            
+
             if raster_found or images:
                 issues.append(
                     ValidationIssue(
@@ -490,7 +493,10 @@ class MarketplaceValidator:
                     ValidationIssue(
                         tier=ValidationTier.HEURISTIC,
                         rule_id="path_count",
-                        message=f"Path count ({path_count}) is below recommendation of {spec.recommended_min_paths}+ paths.",
+                        message=(
+                            f"Path count ({path_count}) is below recommendation "
+                            f"of {spec.recommended_min_paths}+ paths."
+                        ),
                         status=RuleStatus.WARN,
                         marketplace=marketplace,
                     )
@@ -500,7 +506,10 @@ class MarketplaceValidator:
                     ValidationIssue(
                         tier=ValidationTier.HEURISTIC,
                         rule_id="path_count",
-                        message=f"Path count ({path_count}) exceeds recommended maximum of {spec.recommended_max_paths} paths.",
+                        message=(
+                            f"Path count ({path_count}) exceeds recommended "
+                            f"maximum of {spec.recommended_max_paths} paths."
+                        ),
                         status=RuleStatus.WARN,
                         marketplace=marketplace,
                     )
@@ -525,14 +534,17 @@ class MarketplaceValidator:
                 stroke = elem.get("stroke")
                 if stroke and stroke.lower() not in ("none", "inherit", "transparent"):
                     colors.add(stroke.strip().lower())
-            
+
             color_count = len(colors)
             if color_count > spec.recommended_max_colours:
                 issues.append(
                     ValidationIssue(
                         tier=ValidationTier.HEURISTIC,
                         rule_id="colour_count",
-                        message=f"Distinct color count ({color_count}) exceeds recommended maximum of {spec.recommended_max_colours} colors.",
+                        message=(
+                            f"Distinct color count ({color_count}) exceeds recommended "
+                            f"maximum of {spec.recommended_max_colours} colors."
+                        ),
                         status=RuleStatus.WARN,
                         marketplace=marketplace,
                     )
@@ -564,7 +576,10 @@ class MarketplaceValidator:
                     ValidationIssue(
                         tier=ValidationTier.HEURISTIC,
                         rule_id="stroke_width",
-                        message=f"Found {thin_strokes_found} stroke(s) thinner than {spec.min_stroke_width_px} px.",
+                        message=(
+                            f"Found {thin_strokes_found} stroke(s) thinner "
+                            f"than {spec.min_stroke_width_px} px."
+                        ),
                         status=RuleStatus.WARN,
                         marketplace=marketplace,
                     )
@@ -584,7 +599,7 @@ class MarketplaceValidator:
             w_str = root.get("width")
             h_str = root.get("height")
             vb_str = root.get("viewBox")
-            
+
             if w_str and h_str and vb_str:
                 try:
                     w_val = float("".join(c for c in w_str if c.isdigit() or c in (".", ",")))
@@ -598,7 +613,10 @@ class MarketplaceValidator:
                                 ValidationIssue(
                                     tier=ValidationTier.HEURISTIC,
                                     rule_id="viewbox_artboard",
-                                    message=f"Artboard dimensions ({w_val}x{h_val}) do not match viewbox dimensions ({vb_w}x{vb_h}).",
+                                    message=(
+                                        f"Artboard dimensions ({w_val}x{h_val}) do not "
+                                        f"match viewbox dimensions ({vb_w}x{vb_h})."
+                                    ),
                                     status=RuleStatus.WARN,
                                     marketplace=marketplace,
                                 )
@@ -692,10 +710,11 @@ class MarketplaceValidator:
             return ValidationResult(marketplace=marketplace, file_path=jpg_path, issues=issues)
 
         from PIL import Image
+
         try:
             with Image.open(jpg_path) as img:
                 w, h = img.size
-                
+
                 if img.format != "JPEG":
                     issues.append(
                         ValidationIssue(
@@ -723,7 +742,10 @@ class MarketplaceValidator:
                         ValidationIssue(
                             tier=ValidationTier.VERIFIED,
                             rule_id="preview_width",
-                            message=f"Preview width ({w} px) is below minimum of {spec.min_preview_width_px} px.",
+                            message=(
+                                f"Preview width ({w} px) is below "
+                                f"minimum of {spec.min_preview_width_px} px."
+                            ),
                             status=RuleStatus.FAIL,
                             marketplace=marketplace,
                         )
@@ -745,7 +767,10 @@ class MarketplaceValidator:
                         ValidationIssue(
                             tier=ValidationTier.VERIFIED,
                             rule_id="preview_height",
-                            message=f"Preview height ({h} px) is below minimum of {spec.min_preview_height_px} px.",
+                            message=(
+                                f"Preview height ({h} px) is below "
+                                f"minimum of {spec.min_preview_height_px} px."
+                            ),
                             status=RuleStatus.FAIL,
                             marketplace=marketplace,
                         )
@@ -795,10 +820,7 @@ class MarketplaceValidator:
         """
         if marketplace not in self._specs:
             available = ", ".join(sorted(self._specs))
-            raise KeyError(
-                f"Unknown marketplace {marketplace!r}. "
-                f"Available: {available}"
-            )
+            raise KeyError(f"Unknown marketplace {marketplace!r}. Available: {available}")
         return self._specs[marketplace]
 
     def supported_marketplaces(self) -> list[str]:
@@ -823,7 +845,7 @@ class MarketplaceValidator:
         if not value:
             return 0.0
         value = value.strip().lower()
-        
+
         # Extract numeric part
         num_str = ""
         unit_str = ""
@@ -832,15 +854,15 @@ class MarketplaceValidator:
                 num_str += char
             elif char.isalpha() or char == "%":
                 unit_str += char
-                
+
         if not num_str:
             return 0.0
-            
+
         try:
             val = float(num_str)
         except ValueError:
             return 0.0
-        
+
         if unit_str == "mm":
             return val * (96.0 / 25.4)
         elif unit_str == "cm":
@@ -851,7 +873,7 @@ class MarketplaceValidator:
             return val * (96.0 / 72.0)
         elif unit_str == "pc":
             return val * 16.0
-            
+
         return val
 
     def _get_svg_dimensions(self, svg_path: Path) -> tuple[float, float]:
@@ -860,24 +882,24 @@ class MarketplaceValidator:
             root = tree.getroot()
             width = root.get("width")
             height = root.get("height")
-            viewBox = root.get("viewBox")
-            
+            viewbox = root.get("viewBox")
+
             w_val = 0.0
             h_val = 0.0
-            
+
             if width and "%" not in width:
                 w_val = self._parse_svg_dimension(width)
             if height and "%" not in height:
                 h_val = self._parse_svg_dimension(height)
-                
-            if (w_val == 0.0 or h_val == 0.0) and viewBox:
-                parts = [float(p) for p in viewBox.replace(",", " ").split() if p]
+
+            if (w_val == 0.0 or h_val == 0.0) and viewbox:
+                parts = [float(p) for p in viewbox.replace(",", " ").split() if p]
                 if len(parts) == 4:
                     if w_val == 0.0:
                         w_val = parts[2]
                     if h_val == 0.0:
                         h_val = parts[3]
-                        
+
             return w_val, h_val
         except Exception:
             return 0.0, 0.0
@@ -885,81 +907,105 @@ class MarketplaceValidator:
     def _validate_adobe_stock(self, svg_path: Path) -> ValidationReport:
         errors: list[ValidationError] = []
         warnings: list[ValidationWarning] = []
-        
+
         # 1. File exists
         if not svg_path.exists():
             errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
-            return ValidationReport(preset="adobe_stock", passed=False, errors=errors, warnings=warnings)
-            
+            return ValidationReport(
+                preset="adobe_stock", passed=False, errors=errors, warnings=warnings
+            )
+
         # 2. File size
         size = svg_path.stat().st_size
         if size > 100 * 1024 * 1024:
             errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 100MB"))
-            
+
         # 3. Dimensions
         w_val, h_val = self._get_svg_dimensions(svg_path)
         if w_val * h_val < 15_000_000:
-            errors.append(ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 15MP"))
-            
+            errors.append(
+                ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 15MP")
+            )
+
         # 4. Color Mode
         try:
             content = svg_path.read_text(errors="ignore")
             if "device-cmyk" in content.lower() or "cmyk" in content.lower():
-                errors.append(ValidationError(code="INVALID_COLOR_MODE", message="Color mode must be RGB"))
+                errors.append(
+                    ValidationError(code="INVALID_COLOR_MODE", message="Color mode must be RGB")
+                )
         except Exception as e:
-            errors.append(ValidationError(code="READ_ERROR", message=f"Failed to check color mode: {e}"))
-            
+            errors.append(
+                ValidationError(code="READ_ERROR", message=f"Failed to check color mode: {e}")
+            )
+
         passed = len(errors) == 0
-        return ValidationReport(preset="adobe_stock", passed=passed, errors=errors, warnings=warnings)
+        return ValidationReport(
+            preset="adobe_stock", passed=passed, errors=errors, warnings=warnings
+        )
 
     def _validate_shutterstock(self, svg_path: Path) -> ValidationReport:
         errors: list[ValidationError] = []
         warnings: list[ValidationWarning] = []
-        
+
         # 1. File exists
         if not svg_path.exists():
             errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
-            return ValidationReport(preset="shutterstock", passed=False, errors=errors, warnings=warnings)
-            
+            return ValidationReport(
+                preset="shutterstock", passed=False, errors=errors, warnings=warnings
+            )
+
         # 2. File size
         size = svg_path.stat().st_size
         if size > 50 * 1024 * 1024:
             errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 50MB"))
-            
+
         # 3. Dimensions
         w_val, h_val = self._get_svg_dimensions(svg_path)
         if w_val * h_val < 4_000_000:
-            errors.append(ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 4MP"))
-            
+            errors.append(
+                ValidationError(code="BELOW_MIN_RESOLUTION", message="Resolution is below 4MP")
+            )
+
         # 4. IPTC warning
         try:
             content = svg_path.read_text(errors="ignore")
-            if "<metadata>" not in content.lower() and "<rdf:rdf>" not in content.lower() and "iptc" not in content.lower():
-                warnings.append(ValidationWarning(code="MISSING_IPTC", message="IPTC metadata is missing"))
+            if (
+                "<metadata>" not in content.lower()
+                and "<rdf:rdf>" not in content.lower()
+                and "iptc" not in content.lower()
+            ):
+                warnings.append(
+                    ValidationWarning(code="MISSING_IPTC", message="IPTC metadata is missing")
+                )
         except Exception:
             pass
-            
+
         passed = len(errors) == 0
-        return ValidationReport(preset="shutterstock", passed=passed, errors=errors, warnings=warnings)
+        return ValidationReport(
+            preset="shutterstock", passed=passed, errors=errors, warnings=warnings
+        )
 
     def _validate_freepik(self, svg_path: Path) -> ValidationReport:
         errors: list[ValidationError] = []
         warnings: list[ValidationWarning] = []
-        
+
         # 1. File exists
         if not svg_path.exists():
             errors.append(ValidationError(code="FILE_NOT_FOUND", message="SVG file not found"))
-            return ValidationReport(preset="freepik", passed=False, errors=errors, warnings=warnings)
-            
+            return ValidationReport(
+                preset="freepik", passed=False, errors=errors, warnings=warnings
+            )
+
         # 2. File size
         size = svg_path.stat().st_size
         if size > 25 * 1024 * 1024:
             errors.append(ValidationError(code="FILE_TOO_LARGE", message="File size exceeds 25MB"))
-            
+
         # 3. Format
         if svg_path.suffix.lower() not in (".svg", ".eps"):
             errors.append(ValidationError(code="INVALID_FORMAT", message="Format not accepted"))
-            
+
         passed = len(errors) == 0
         return ValidationReport(preset="freepik", passed=passed, errors=errors, warnings=warnings)
 
@@ -967,6 +1013,7 @@ class MarketplaceValidator:
 @dataclass
 class ValidationError:
     """Represents a critical compliance failure."""
+
     code: str
     message: str
     fatal: bool = True
@@ -975,6 +1022,7 @@ class ValidationError:
 @dataclass
 class ValidationWarning:
     """Represents a non-blocking compliance recommendation."""
+
     code: str
     message: str
 
@@ -982,6 +1030,7 @@ class ValidationWarning:
 @dataclass
 class ValidationReport:
     """Report summarizing the compliance state against a preset."""
+
     preset: str
     passed: bool
     errors: list[ValidationError]
@@ -996,7 +1045,7 @@ class ValidationReport:
 
 class MarketplacePreset(Enum):
     """Presets for target marketplaces."""
+
     ADOBE_STOCK = "adobe_stock"
     SHUTTERSTOCK = "shutterstock"
     FREEPIK = "freepik"
-

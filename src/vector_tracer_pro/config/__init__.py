@@ -1,1 +1,1 @@
-﻿"""Application configuration — defaults and Pydantic schema."""
+"""Application configuration — defaults and Pydantic schema."""

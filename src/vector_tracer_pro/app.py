@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
+
 from PySide6.QtWidgets import QApplication
 
 from vector_tracer_pro.core.path_manager import PathManager
@@ -57,7 +57,7 @@ def main() -> None:
 
     # 4. Instantiate UI views and Controllers
     window = MainWindow()
-    controller = MainController(
+    _controller = MainController(
         window=window,
         pipeline=pipeline,
         batch_runner=batch_runner,
@@ -73,6 +73,7 @@ def main() -> None:
     #    survives until app.exec() returns (Python GC won't collect it).
     try:
         import importlib.metadata as _meta
+
         _current_ver = _meta.version("vector-tracer-pro")
     except Exception:
         _current_ver = "0.0.0"

@@ -7,17 +7,21 @@ Orchestrates the vectorisation pipeline from input raster file to validated outp
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
-from vector_tracer_pro.core.image.loader import ImageLoader
-from vector_tracer_pro.core.image.classifier import ImageCategory, ImageClassifier
-from vector_tracer_pro.core.image.preprocessor import PreprocessConfig, Preprocessor
-from vector_tracer_pro.core.image.bitmapper import BitmapFormat, Bitmapper
-from vector_tracer_pro.core.trace_strategy import TraceParams, TraceStrategySelector
 from vector_tracer_pro.core.classifier import ClassificationResult, ImageType
-from vector_tracer_pro.core.marketplace_validator import MarketplacePreset, MarketplaceValidator, ValidationReport
+from vector_tracer_pro.core.image.bitmapper import BitmapFormat, Bitmapper
+from vector_tracer_pro.core.image.classifier import ImageCategory, ImageClassifier
+from vector_tracer_pro.core.image.loader import ImageLoader
+from vector_tracer_pro.core.image.preprocessor import PreprocessConfig, Preprocessor
+from vector_tracer_pro.core.marketplace_validator import (
+    MarketplacePreset,
+    MarketplaceValidator,
+    ValidationReport,
+)
+from vector_tracer_pro.core.trace_strategy import TraceParams, TraceStrategySelector
 
 
 @dataclass
@@ -40,7 +44,9 @@ _CATEGORY_TO_IMAGE_TYPE = {
 
 
 class Pipeline:
-    """Orchestrates image loading, classification, preprocessing, bitmapping, tracing, and validation."""
+    """Orchestrates image loading, classification, preprocessing, bitmapping,
+    tracing, and validation.
+    """
 
     def run(
         self,
@@ -73,6 +79,7 @@ class Pipeline:
         PipelineResult
             Summary of the pipeline results.
         """
+
         def emit(step: str, pct: int) -> None:
             if on_progress:
                 on_progress(step, pct)
@@ -113,6 +120,7 @@ class Pipeline:
 
             # Check vtracer availability dynamically
             from vector_tracer_pro.core.dependency_checker import DependencyChecker
+
             dep_checker = DependencyChecker()
             report = dep_checker.check_all()
             vtracer_available = report.vtracer_check.passed if report.vtracer_check else False

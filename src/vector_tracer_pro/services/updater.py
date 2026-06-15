@@ -142,7 +142,7 @@ class UpdateChecker(QThread):
 
         try:
             release_data = self._fetch_latest_release()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("UpdateChecker: network/parse error — %s", exc)
             return
 
@@ -194,9 +194,7 @@ class UpdateChecker(QThread):
         )
         with urllib.request.urlopen(req, timeout=self._timeout) as response:
             if response.status != 200:
-                raise ValueError(
-                    f"GitHub API returned HTTP {response.status}"
-                )
+                raise ValueError(f"GitHub API returned HTTP {response.status}")
             raw: bytes = response.read()
 
         data: dict[str, object] = json.loads(raw)

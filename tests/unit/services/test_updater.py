@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import json
 import urllib.error
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from vector_tracer_pro.services.updater import UpdateChecker, _is_newer, _parse_version
-
 
 # ===========================================================================
 # Version parsing helpers
@@ -248,14 +247,12 @@ class TestUpdateChecker:
 
     def test_default_api_url_is_github(self) -> None:
         checker = UpdateChecker(current_version="0.1.0")
-        assert "github.com" in checker._api_url  # noqa: SLF001
+        assert "github.com" in checker._api_url
 
     def test_custom_api_url_accepted(self) -> None:
-        checker = UpdateChecker(
-            current_version="0.1.0", api_url="http://localhost:9999/api"
-        )
-        assert checker._api_url == "http://localhost:9999/api"  # noqa: SLF001
+        checker = UpdateChecker(current_version="0.1.0", api_url="http://localhost:9999/api")
+        assert checker._api_url == "http://localhost:9999/api"
 
     def test_default_timeout_is_five_seconds(self) -> None:
         checker = UpdateChecker(current_version="0.1.0")
-        assert checker._timeout == 5  # noqa: SLF001
+        assert checker._timeout == 5

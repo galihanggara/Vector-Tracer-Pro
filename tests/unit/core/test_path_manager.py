@@ -17,7 +17,6 @@ import pytest
 
 from vector_tracer_pro.core.path_manager import PathManager
 
-
 # ===========================================================================
 # Fixtures
 # ===========================================================================
@@ -52,7 +51,7 @@ class TestPathManagerConstruction:
     def test_custom_temp_root_is_stored(self, tmp_path: Path) -> None:
         custom = tmp_path / "custom_temp"
         pm = PathManager(temp_root=custom)
-        assert pm._temp_root == custom  # noqa: SLF001
+        assert pm._temp_root == custom
 
     def test_session_id_exists(self) -> None:
         pm = PathManager()
@@ -154,26 +153,20 @@ class TestEnsureAllDirs:
 
 @pytest.mark.unit
 class TestSetOutputRoot:
-    def test_set_output_root_changes_svg_dir(
-        self, pm: PathManager, tmp_path: Path
-    ) -> None:
+    def test_set_output_root_changes_svg_dir(self, pm: PathManager, tmp_path: Path) -> None:
         new_root = tmp_path / "new_output"
         pm.set_output_root(new_root)
         svg_dir = pm.get_output_svg_dir()
         assert str(new_root) in str(svg_dir)
         assert svg_dir.is_dir()
 
-    def test_set_output_root_changes_preview_dir(
-        self, pm: PathManager, tmp_path: Path
-    ) -> None:
+    def test_set_output_root_changes_preview_dir(self, pm: PathManager, tmp_path: Path) -> None:
         new_root = tmp_path / "another_output"
         pm.set_output_root(new_root)
         preview_dir = pm.get_output_preview_dir()
         assert str(new_root) in str(preview_dir)
 
-    def test_get_output_root_reflects_new_root(
-        self, pm: PathManager, tmp_path: Path
-    ) -> None:
+    def test_get_output_root_reflects_new_root(self, pm: PathManager, tmp_path: Path) -> None:
         new_root = tmp_path / "updated"
         pm.set_output_root(new_root)
         assert pm.get_output_root() == new_root
@@ -252,12 +245,12 @@ class TestCleanupAPI:
         p2 = pm.temp_path_for(Path("2.jpg"))
         p1.write_bytes(b"data1")
         p2.write_bytes(b"data2")
-        
+
         temp_dir = pm.get_temp_dir()
         assert p1.is_file()
         assert p2.is_file()
         assert temp_dir.is_dir()
-        
+
         deleted_count = pm.cleanup_all_temp_files()
         assert deleted_count == 2
         assert not p1.exists()
@@ -270,16 +263,16 @@ class TestCleanupAPI:
         orphaned_dir.mkdir(parents=True, exist_ok=True)
         orphaned_file = orphaned_dir / "old_temp.bmp"
         orphaned_file.write_bytes(b"old")
-        
+
         assert orphaned_dir.is_dir()
         assert orphaned_file.is_file()
-        
+
         # Run cleanup
         orphaned_deleted = pm.cleanup_orphaned_sessions()
         assert orphaned_deleted == 1
         assert not orphaned_dir.exists()
         assert not orphaned_file.exists()
-        
+
         # Current session should remain untouched
         assert pm.get_temp_dir().is_dir()
 
@@ -291,16 +284,14 @@ class TestCleanupAPI:
 
 @pytest.mark.unit
 class TestThreadSafety:
-    def test_concurrent_ensure_all_dirs_does_not_raise(
-        self, pm: PathManager
-    ) -> None:
+    def test_concurrent_ensure_all_dirs_does_not_raise(self, pm: PathManager) -> None:
         """Multiple threads calling ensure_all_dirs concurrently must not crash."""
         errors: list[Exception] = []
 
         def worker() -> None:
             try:
                 pm.ensure_all_dirs()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         threads = [threading.Thread(target=worker) for _ in range(20)]
@@ -321,14 +312,14 @@ class TestThreadSafety:
             for i in range(50):
                 try:
                     pm.set_output_root(tmp_path / f"root_{i}")
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     errors.append(exc)
 
         def reader() -> None:
             for _ in range(50):
                 try:
                     pm.get_output_root()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     errors.append(exc)
 
         threads = [

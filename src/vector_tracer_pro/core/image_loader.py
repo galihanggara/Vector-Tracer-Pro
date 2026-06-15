@@ -97,7 +97,7 @@ class ImageMetadata:
 
     @property
     def megapixels(self) -> float:
-        """Image resolution in megapixels (width × height / 1_000_000)."""
+        """Image resolution in megapixels (width x height / 1_000_000)."""
         return (self.width * self.height) / 1_000_000
 
     @property
@@ -108,7 +108,7 @@ class ImageMetadata:
     def __str__(self) -> str:
         return (
             f"{self.path.name}  "
-            f"{self.width}×{self.height}px  "
+            f"{self.width}x{self.height}px  "
             f"{self.original_format}  "
             f"{self.file_size_bytes / 1024:.1f} KB"
         )
@@ -274,8 +274,7 @@ class ImageLoader:
         w, h = image.width, image.height
         if w < self._min_width_px or h < self._min_height_px:
             raise ImageTooSmallError(
-                f"Image {w}×{h}px is below minimum "
-                f"{self._min_width_px}×{self._min_height_px}px.",
+                f"Image {w}x{h}px is below minimum {self._min_width_px}x{self._min_height_px}px.",
                 path=str(path),
                 width=w,
                 height=h,
@@ -286,10 +285,4 @@ class ImageLoader:
     @staticmethod
     def _detect_transparency(image: Image.Image) -> bool:
         """Return ``True`` if *image* has meaningful transparency information."""
-        if image.mode == "RGBA":
-            return True
-        if image.mode == "LA":
-            return True
-        if image.mode == "P" and "transparency" in image.info:
-            return True
-        return False
+        return image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)

@@ -8,10 +8,10 @@ Main window container and layout skeleton for Vector Tracer Pro.
 from __future__ import annotations
 
 import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QLabel,
     QListWidget,
     QMainWindow,
@@ -127,14 +127,14 @@ class MainWindow(QMainWindow):
 
         # File Menu
         file_menu = menu_bar.addMenu("File")
-        
+
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # Preset Menu
         preset_menu = menu_bar.addMenu("Preset")
-        
+
         load_action = QAction("Load Preset...", self)
         load_action.triggered.connect(self._stub_load_preset)
         preset_menu.addAction(load_action)
@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
 
         # Help Menu
         help_menu = menu_bar.addMenu("Help")
-        
+
         about_action = QAction("About", self)
         about_action.triggered.connect(self._on_about)
         help_menu.addAction(about_action)

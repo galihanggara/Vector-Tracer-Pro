@@ -8,21 +8,19 @@ Unit tests for :mod:`vector_tracer_pro.core.marketplace_validator`.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 from PIL import Image
 
-from unittest.mock import MagicMock, patch
-
 from vector_tracer_pro.core.marketplace_validator import (
-    MARKETPLACE_SPECS,
-    SUPPORTED_MARKETPLACES,
+    MarketplacePreset,
     MarketplaceValidator,
     RuleStatus,
     ValidationIssue,
     ValidationResult,
     ValidationTier,
 )
-
 
 
 @pytest.mark.unit
@@ -153,7 +151,9 @@ class TestMarketplaceValidator:
         validator = MarketplaceValidator()
         result = validator.validate_svg(Path("nonexistent.svg"), "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "file_exists" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "file_exists" and i.status == RuleStatus.FAIL for i in result.issues
+        )
 
     def test_validate_svg_invalid_xml(self, tmp_path: Path) -> None:
         p = tmp_path / "bad.svg"
@@ -161,21 +161,25 @@ class TestMarketplaceValidator:
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "well_formed_xml" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "well_formed_xml" and i.status == RuleStatus.FAIL for i in result.issues
+        )
 
     def test_validate_svg_compliant(self, tmp_path: Path) -> None:
         p = tmp_path / "good.svg"
         p.write_text(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="1600" height="1200" viewBox="0 0 1600 1200">'
             '  <path d="M 0 0 L 10 10 Z" fill="#ff0000" stroke="#000000" stroke-width="1.0" />'
             '  <path d="M 10 10 L 20 20 Z" fill="#00ff00" />'
             '  <path d="M 20 20 L 30 30 Z" fill="#0000ff" />'
-            '</svg>'
+            "</svg>"
         )
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
         assert result.is_compliant is True
-        # Verify warnings/heuristics are ok (3 paths is recommended_min_paths, so no path_count warning)
+        # Verify warnings/heuristics are ok (3 paths is recommended_min_paths,
+        # so no path_count warning)
         assert len(result.verified_failures) == 0
 
     def test_validate_svg_embedded_raster(self, tmp_path: Path) -> None:
@@ -183,31 +187,37 @@ class TestMarketplaceValidator:
         p.write_text(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
             '  <image href="data:image/png;base64,iVBORw0KGgoAAA" width="10" height="10" />'
-            '</svg>'
+            "</svg>"
         )
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "no_embedded_rasters" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "no_embedded_rasters" and i.status == RuleStatus.FAIL
+            for i in result.issues
+        )
 
     def test_validate_svg_embedded_raster_url(self, tmp_path: Path) -> None:
         p = tmp_path / "embedded_url.svg"
         p.write_text(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
             '  <image href="photo.png" width="10" height="10" />'
-            '</svg>'
+            "</svg>"
         )
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "no_embedded_rasters" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "no_embedded_rasters" and i.status == RuleStatus.FAIL
+            for i in result.issues
+        )
 
     def test_validate_svg_too_few_paths(self, tmp_path: Path) -> None:
         p = tmp_path / "few_paths.svg"
         p.write_text(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
             '  <path d="M 0 0 Z" fill="none" />'
-            '</svg>'
+            "</svg>"
         )
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
@@ -219,34 +229,40 @@ class TestMarketplaceValidator:
         p.write_text(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
             '  <line x1="0" y1="0" x2="10" y2="10" stroke="#000" stroke-width="0.2px" />'
-            '</svg>'
+            "</svg>"
         )
         validator = MarketplaceValidator()
         result = validator.validate_svg(p, "adobe_stock")
         assert result.is_compliant is True
-        assert any(i.rule_id == "stroke_width" and i.status == RuleStatus.WARN for i in result.issues)
+        assert any(
+            i.rule_id == "stroke_width" and i.status == RuleStatus.WARN for i in result.issues
+        )
 
     def test_validate_preview_missing_file(self) -> None:
         validator = MarketplaceValidator()
         result = validator.validate_preview(Path("nonexistent.jpg"), "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "file_exists" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "file_exists" and i.status == RuleStatus.FAIL for i in result.issues
+        )
 
     def test_validate_preview_non_jpeg(self, tmp_path: Path) -> None:
         p = tmp_path / "preview.png"
         img = Image.new("RGBA", (1600, 1200), color=(255, 255, 255, 255))
         img.save(p, format="PNG")
-        
+
         validator = MarketplaceValidator()
         result = validator.validate_preview(p, "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "preview_format" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "preview_format" and i.status == RuleStatus.FAIL for i in result.issues
+        )
 
     def test_validate_preview_compliant(self, tmp_path: Path) -> None:
         p = tmp_path / "preview.jpg"
         img = Image.new("RGB", (1600, 1200), color=(128, 128, 128))
         img.save(p, format="JPEG")
-        
+
         validator = MarketplaceValidator()
         result = validator.validate_preview(p, "adobe_stock")
         assert result.is_compliant is True
@@ -256,22 +272,24 @@ class TestMarketplaceValidator:
         p = tmp_path / "small.jpg"
         img = Image.new("RGB", (800, 600), color=(128, 128, 128))
         img.save(p, format="JPEG")
-        
+
         validator = MarketplaceValidator()
         result = validator.validate_preview(p, "adobe_stock")
         assert result.is_compliant is False
-        assert any(i.rule_id == "preview_width" and i.status == RuleStatus.FAIL for i in result.issues)
-        assert any(i.rule_id == "preview_height" and i.status == RuleStatus.FAIL for i in result.issues)
+        assert any(
+            i.rule_id == "preview_width" and i.status == RuleStatus.FAIL for i in result.issues
+        )
+        assert any(
+            i.rule_id == "preview_height" and i.status == RuleStatus.FAIL for i in result.issues
+        )
 
-
-from vector_tracer_pro.core.marketplace_validator import MarketplacePreset, ValidationError, ValidationWarning, ValidationReport
 
 @pytest.mark.unit
 class TestMarketplaceValidatorProduction:
     def test_adobe_stock_compliant(self, tmp_path):
         p = tmp_path / "compliant.svg"
-        p.write_text('<svg width="4000" height="4000"></svg>') # 16MP > 15MP
-        
+        p.write_text('<svg width="4000" height="4000"></svg>')  # 16MP > 15MP
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.ADOBE_STOCK)
         assert report.passed is True
@@ -279,8 +297,8 @@ class TestMarketplaceValidatorProduction:
 
     def test_adobe_stock_below_resolution(self, tmp_path):
         p = tmp_path / "low_res.svg"
-        p.write_text('<svg width="3000" height="3000"></svg>') # 9MP < 15MP
-        
+        p.write_text('<svg width="3000" height="3000"></svg>')  # 9MP < 15MP
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.ADOBE_STOCK)
         assert report.passed is False
@@ -299,8 +317,10 @@ class TestMarketplaceValidatorProduction:
 
     def test_shutterstock_compliant(self, tmp_path):
         p = tmp_path / "compliant_shutterstock.svg"
-        p.write_text('<svg width="2000" height="2000"><metadata>IPTC</metadata></svg>') # 4MP, has IPTC
-        
+        p.write_text(
+            '<svg width="2000" height="2000"><metadata>IPTC</metadata></svg>'
+        )  # 4MP, has IPTC
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
         assert report.passed is True
@@ -309,8 +329,10 @@ class TestMarketplaceValidatorProduction:
 
     def test_shutterstock_below_resolution(self, tmp_path):
         p = tmp_path / "low_res_shutterstock.svg"
-        p.write_text('<svg width="1500" height="1500"><metadata>IPTC</metadata></svg>') # 2.25MP < 4MP
-        
+        p.write_text(
+            '<svg width="1500" height="1500"><metadata>IPTC</metadata></svg>'
+        )  # 2.25MP < 4MP
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
         assert report.passed is False
@@ -318,8 +340,8 @@ class TestMarketplaceValidatorProduction:
 
     def test_shutterstock_missing_iptc(self, tmp_path):
         p = tmp_path / "no_iptc.svg"
-        p.write_text('<svg width="2000" height="2000"></svg>') # 4MP, no IPTC
-        
+        p.write_text('<svg width="2000" height="2000"></svg>')  # 4MP, no IPTC
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.SHUTTERSTOCK)
         assert report.passed is True  # Warning, not error
@@ -329,7 +351,7 @@ class TestMarketplaceValidatorProduction:
     def test_freepik_compliant(self, tmp_path):
         p = tmp_path / "compliant_freepik.svg"
         p.write_text('<svg width="1000" height="1000"></svg>')
-        
+
         validator = MarketplaceValidator()
         report = validator.validate(p, MarketplacePreset.FREEPIK)
         assert report.passed is True
@@ -352,4 +374,3 @@ class TestMarketplaceValidatorProduction:
         assert validator._parse_svg_dimension("1in") == 96.0
         assert abs(validator._parse_svg_dimension("10mm") - 37.795) < 0.1
         assert abs(validator._parse_svg_dimension("1cm") - 37.795) < 0.1
-

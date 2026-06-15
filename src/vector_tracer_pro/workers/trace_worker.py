@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 from vector_tracer_pro.core.image.preprocessor import PreprocessConfig

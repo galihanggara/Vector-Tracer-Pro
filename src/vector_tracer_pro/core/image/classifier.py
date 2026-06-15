@@ -8,6 +8,7 @@ Rule-based image classifier for identifying image categories.
 from __future__ import annotations
 
 from enum import Enum
+
 import numpy as np
 
 from vector_tracer_pro.core.image.loader import ImageData

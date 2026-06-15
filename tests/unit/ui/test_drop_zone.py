@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
+
 import pytest
-from PySide6.QtCore import QMimeData, QPoint, QUrl, Qt
+from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QWidget
 
 from vector_tracer_pro.ui.widgets.drop_zone import DropZoneWidget
 
@@ -50,7 +50,13 @@ class TestDropZoneWidget:
 
         mime = QMimeData()
         mime.setUrls([QUrl.fromLocalFile("/path/to/image.png")])
-        event = QDragEnterEvent(QPoint(0, 0), Qt.DropAction.CopyAction, mime, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+        event = QDragEnterEvent(
+            QPoint(0, 0),
+            Qt.DropAction.CopyAction,
+            mime,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
 
         widget.dragEnterEvent(event)
         assert event.isAccepted() is True
@@ -61,7 +67,13 @@ class TestDropZoneWidget:
 
         mime = QMimeData()
         mime.setUrls([QUrl.fromLocalFile("/path/to/document.pdf")])
-        event = QDragEnterEvent(QPoint(0, 0), Qt.DropAction.CopyAction, mime, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+        event = QDragEnterEvent(
+            QPoint(0, 0),
+            Qt.DropAction.CopyAction,
+            mime,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
 
         widget.dragEnterEvent(event)
         assert event.isAccepted() is False
@@ -71,11 +83,19 @@ class TestDropZoneWidget:
         qtbot.addWidget(widget)
 
         mime = QMimeData()
-        mime.setUrls([
-            QUrl.fromLocalFile("/path/to/img.png"),
-            QUrl.fromLocalFile("/path/to/doc.txt"),  # should be ignored
-        ])
-        event = QDropEvent(QPoint(0, 0), Qt.DropAction.CopyAction, mime, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+        mime.setUrls(
+            [
+                QUrl.fromLocalFile("/path/to/img.png"),
+                QUrl.fromLocalFile("/path/to/doc.txt"),  # should be ignored
+            ]
+        )
+        event = QDropEvent(
+            QPoint(0, 0),
+            Qt.DropAction.CopyAction,
+            mime,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
 
         # Mock that file is a file
         with patch.object(Path, "is_file", return_value=True):

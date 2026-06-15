@@ -27,7 +27,6 @@ from vector_tracer_pro.core.dependency_checker import (
     CheckStatus,
     DependencyChecker,
     ValidationReport,
-    _parse_version,
     _version_meets_minimum,
 )
 from vector_tracer_pro.core.path_manager import PathManager
@@ -48,15 +47,14 @@ _INKSCAPE_AVAILABLE: bool = shutil.which("inkscape") is not None
 class TestPythonCheckIntegration:
     def test_python_check_passes_on_current_interpreter(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_python()  # noqa: SLF001
+        result = checker._check_python()
         assert result.passed, (
-            f"Python {sys.version} should pass the >= 3.12 gate. "
-            f"Message: {result.message}"
+            f"Python {sys.version} should pass the >= 3.12 gate. Message: {result.message}"
         )
 
     def test_python_check_detected_version_matches_sys(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_python()  # noqa: SLF001
+        result = checker._check_python()
         vi = sys.version_info
         expected = f"{vi.major}.{vi.minor}.{vi.micro}"
         assert result.detected_version == expected
@@ -72,12 +70,12 @@ class TestPythonCheckIntegration:
 class TestPotraceCheckIntegration:
     def test_potrace_check_returns_ok(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.passed, f"Potrace check failed: {result.message}"
 
     def test_potrace_detected_version_is_parseable(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.detected_version is not None
         parts = result.detected_version.split(".")
         assert len(parts) == 3
@@ -85,8 +83,9 @@ class TestPotraceCheckIntegration:
 
     def test_potrace_detected_path_exists(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         from pathlib import Path
+
         assert result.detected_path is not None
         assert Path(result.detected_path).exists()
 
@@ -94,11 +93,9 @@ class TestPotraceCheckIntegration:
         from vector_tracer_pro.config.defaults import POTRACE_MINIMUM_VERSION
 
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.detected_version is not None
-        assert _version_meets_minimum(
-            result.detected_version, POTRACE_MINIMUM_VERSION
-        ), (
+        assert _version_meets_minimum(result.detected_version, POTRACE_MINIMUM_VERSION), (
             f"Installed Potrace {result.detected_version} is below "
             f"minimum {POTRACE_MINIMUM_VERSION}"
         )
@@ -109,7 +106,7 @@ class TestPotraceCheckIntegration:
 class TestPotraceAbsent:
     def test_missing_potrace_returns_missing_status(self) -> None:
         checker = DependencyChecker(potrace_executable="potrace_missing")
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.status == CheckStatus.MISSING
         assert result.is_critical is True
 
@@ -124,12 +121,12 @@ class TestPotraceAbsent:
 class TestInkscapeCheckIntegration:
     def test_inkscape_check_returns_ok(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.passed, f"Inkscape check failed: {result.message}"
 
     def test_inkscape_detected_version_parseable(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.detected_version is not None
         parts = result.detected_version.split(".")
         assert len(parts) == 3
@@ -139,11 +136,9 @@ class TestInkscapeCheckIntegration:
         from vector_tracer_pro.config.defaults import INKSCAPE_MINIMUM_VERSION
 
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.detected_version is not None
-        assert _version_meets_minimum(
-            result.detected_version, INKSCAPE_MINIMUM_VERSION
-        ), (
+        assert _version_meets_minimum(result.detected_version, INKSCAPE_MINIMUM_VERSION), (
             f"Installed Inkscape {result.detected_version} is below "
             f"minimum {INKSCAPE_MINIMUM_VERSION}"
         )
@@ -154,7 +149,7 @@ class TestInkscapeCheckIntegration:
 class TestInkscapeAbsent:
     def test_missing_inkscape_returns_missing(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.status == CheckStatus.MISSING
 
 
@@ -169,7 +164,7 @@ class TestWritePermissionsIntegration:
         from pathlib import Path
 
         checker = DependencyChecker(write_check_paths=[Path(str(tmp_path))])
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.passed
 
     def test_path_manager_paths_are_writable(self, tmp_path: object) -> None:
@@ -180,7 +175,7 @@ class TestWritePermissionsIntegration:
             temp_root=Path(str(tmp_path)) / "temp",
         )
         checker = DependencyChecker.from_path_manager(pm)
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.passed, f"Write permission check failed: {result.message}"
 
 
@@ -193,19 +188,19 @@ class TestWritePermissionsIntegration:
 class TestDiskSpaceIntegration:
     def test_disk_space_check_runs_without_error(self) -> None:
         checker = DependencyChecker(min_disk_space_mb=1.0)
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         # At minimum, the check should run without raising
         assert result.status in list(CheckStatus)
 
     def test_disk_space_check_is_non_critical(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         assert result.is_critical is False
 
     def test_absurdly_high_threshold_returns_insufficient(self) -> None:
         """Requesting 999 TB should always fail."""
         checker = DependencyChecker(min_disk_space_mb=999 * 1024 * 1024)
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         assert result.status == CheckStatus.INSUFFICIENT_DISK
 
 
@@ -250,6 +245,5 @@ class TestCheckAllIntegration:
         report = checker.check_all()
         failed_critical = [c for c in report.critical_checks if c.failed]
         assert not failed_critical, (
-            f"Critical checks failed even with tools available: "
-            f"{[c.name for c in failed_critical]}"
+            f"Critical checks failed even with tools available: {[c.name for c in failed_critical]}"
         )

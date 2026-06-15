@@ -8,13 +8,13 @@ Stress and concurrency tests for PathManager and batch pipeline simulation.
 from __future__ import annotations
 
 import concurrent.futures
-from pathlib import Path
 import queue
-import threading
+from pathlib import Path
+
 import pytest
 
-from vector_tracer_pro.core.path_manager import PathManager
 from vector_tracer_pro.core.marketplace_validator import MarketplaceValidator
+from vector_tracer_pro.core.path_manager import PathManager
 
 
 @pytest.mark.unit
@@ -41,7 +41,7 @@ class TestMultiThreadStress:
                     p.write_bytes(f"thread_{thread_idx}_op_{i}_data".encode())
                     assert p.is_file()
                     created_paths.put(p)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         # Launch concurrent threads
@@ -64,7 +64,7 @@ class TestMultiThreadStress:
                         assert not p.exists()
                     except queue.Empty:
                         break
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -103,9 +103,9 @@ class TestMultiThreadStress:
                 svg_output = pm.svg_path_for(Path(f"vector_{job_id}.png"))
                 svg_output.parent.mkdir(parents=True, exist_ok=True)
                 svg_output.write_text(
-                    f'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
-                    f'  <path d="M 0 0 Z" fill="#ffffff" />'
-                    f'</svg>'
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+                    '  <path d="M 0 0 Z" fill="#ffffff" />'
+                    "</svg>"
                 )
 
                 # 3. Validate output
@@ -116,7 +116,7 @@ class TestMultiThreadStress:
                 deleted = pm.cleanup_temp_file(temp_input)
                 assert deleted is True
 
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         # Run concurrent pipeline jobs
@@ -128,4 +128,6 @@ class TestMultiThreadStress:
 
         # Delete remaining outputs and clean up session directory
         assert pm.cleanup_all_temp_files() == 0  # Job files already deleted
-        assert not (pm.temp_root / pm.session_id).exists()  # Session directory itself should be deleted
+        assert not (
+            pm.temp_root / pm.session_id
+        ).exists()  # Session directory itself should be deleted

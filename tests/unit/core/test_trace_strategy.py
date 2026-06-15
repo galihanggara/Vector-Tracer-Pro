@@ -7,9 +7,10 @@ Unit tests for :mod:`vector_tracer_pro.core.trace_strategy`.
 
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from vector_tracer_pro.core.classifier import ClassificationResult, ImageType
@@ -21,14 +22,14 @@ from vector_tracer_pro.core.exceptions import (
     TracingError,
 )
 from vector_tracer_pro.core.trace_strategy import (
+    FallbackTracingStrategy,
+    InkscapeTracingStrategy,
+    PotraceTracingStrategy,
     TraceEngine,
     TraceParams,
-    TracingStrategy,
-    PotraceTracingStrategy,
-    InkscapeTracingStrategy,
-    VTracerTracingStrategy,
-    FallbackTracingStrategy,
     TraceStrategySelector,
+    TracingStrategy,
+    VTracerTracingStrategy,
 )
 
 
@@ -64,7 +65,6 @@ class TestTracingStrategyHierarchy:
         assert ts.uses_inkscape is True
         assert ts.uses_vtracer is False
 
-
     def test_vtracer_strategy_properties(self) -> None:
         ts = VTracerTracingStrategy(reason="Test vtracer")
         assert ts.primary_engine == TraceEngine.VTRACER
@@ -73,12 +73,13 @@ class TestTracingStrategyHierarchy:
         assert ts.uses_inkscape is False
         assert ts.uses_vtracer is True
 
-
     def test_fallback_strategy_properties(self) -> None:
         primary = InkscapeTracingStrategy(reason="Primary Inkscape", params={"colors": 8})
         fallback = VTracerTracingStrategy(reason="Fallback VTracer")
-        ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Fallback composite")
-        
+        ts = FallbackTracingStrategy(
+            primary=primary, fallback=fallback, reason="Fallback composite"
+        )
+
         assert ts.primary_engine == TraceEngine.INKSCAPE
         assert ts.fallback_engine == TraceEngine.VTRACER
         assert ts.engine_params == {"colors": 8}
@@ -93,7 +94,9 @@ class TestTracingStrategyHierarchy:
 
         primary = InkscapeTracingStrategy(reason="Inkscape")
         fallback = VTracerTracingStrategy(reason="VTracer")
-        ts_fallback = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Color reason")
+        ts_fallback = FallbackTracingStrategy(
+            primary=primary, fallback=fallback, reason="Color reason"
+        )
         assert "fallback: vtracer" in str(ts_fallback)
 
 
@@ -102,10 +105,10 @@ class TestFallbackStrategyExecution:
     def test_fallback_execution_success(self) -> None:
         primary = MagicMock(spec=TracingStrategy)
         fallback = MagicMock(spec=TracingStrategy)
-        
+
         ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Test execution")
         ts.execute(Path("in.bmp"), Path("out.svg"))
-        
+
         primary.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"), None)
         fallback.execute.assert_not_called()
 
@@ -113,10 +116,10 @@ class TestFallbackStrategyExecution:
         primary = MagicMock(spec=TracingStrategy)
         primary.execute.side_effect = TracingError("Primary failed")
         fallback = MagicMock(spec=TracingStrategy)
-        
+
         ts = FallbackTracingStrategy(primary=primary, fallback=fallback, reason="Test execution")
         ts.execute(Path("in.bmp"), Path("out.svg"))
-        
+
         primary.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"), None)
         fallback.execute.assert_called_once_with(Path("in.bmp"), Path("out.svg"), None)
 
@@ -162,23 +165,25 @@ class TestPotraceTracingStrategy:
         mock_report = MagicMock()
         mock_report.potrace_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.pbm"
         input_file.write_text("fake pbm")
         output_file = tmp_path / "out.svg"
-        
+
         def side_effect(*args, **kwargs):
             output_file.write_text("<svg></svg>")
             return MagicMock(returncode=0)
+
         mock_run.side_effect = side_effect
-        
+
         strategy = PotraceTracingStrategy(reason="Test Potrace")
         params = TraceParams(turdsize=15, alphamax=0.5, opttolerance=0.1)
         strategy.execute(input_file, output_file, params)
-        
+
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         from pathlib import Path
+
         assert Path(args[0]).stem.lower() == "potrace"
         assert args[1] == str(input_file)
         assert "-s" in args
@@ -200,7 +205,7 @@ class TestPotraceTracingStrategy:
         mock_report.potrace_check.detected_version = None
         mock_report.potrace_check.download_url = "http://potrace"
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = PotraceTracingStrategy(reason="Test Potrace")
         with pytest.raises(DependencyMissingError) as exc_info:
             strategy.execute(tmp_path / "in.pbm", tmp_path / "out.svg")
@@ -212,7 +217,7 @@ class TestPotraceTracingStrategy:
         mock_report = MagicMock()
         mock_report.potrace_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = PotraceTracingStrategy(reason="Test Potrace")
         input_file = tmp_path / "in.jpg"
         input_file.write_text("fake jpeg")
@@ -226,12 +231,12 @@ class TestPotraceTracingStrategy:
         mock_report = MagicMock()
         mock_report.potrace_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.pbm"
         input_file.write_text("fake pbm")
-        
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["potrace"], timeout=30)
-        
+
         strategy = PotraceTracingStrategy(reason="Test Potrace")
         with pytest.raises(TraceTimeoutError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -243,12 +248,12 @@ class TestPotraceTracingStrategy:
         mock_report = MagicMock()
         mock_report.potrace_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.pbm"
         input_file.write_text("fake pbm")
-        
+
         mock_run.return_value = MagicMock(returncode=1, stderr="Something went wrong")
-        
+
         strategy = PotraceTracingStrategy(reason="Test Potrace")
         with pytest.raises(TraceExecutionError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -265,23 +270,27 @@ class TestVTracerTracingStrategy:
         mock_report = MagicMock()
         mock_report.vtracer_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
         output_file = tmp_path / "out.svg"
-        
+
         def side_effect(*args, **kwargs):
             output_file.write_text("<svg></svg>")
             return MagicMock(returncode=0)
+
         mock_run.side_effect = side_effect
-        
+
         strategy = VTracerTracingStrategy(reason="Test VTracer")
-        params = TraceParams(colormode="color", filter_speckle=10, color_precision=5, layer_difference=20)
+        params = TraceParams(
+            colormode="color", filter_speckle=10, color_precision=5, layer_difference=20
+        )
         strategy.execute(input_file, output_file, params)
-        
+
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         from pathlib import Path
+
         assert Path(args[0]).stem.lower() == "vtracer"
         assert "--input" in args
         assert args[args.index("--input") + 1] == str(input_file)
@@ -305,7 +314,7 @@ class TestVTracerTracingStrategy:
         mock_report.vtracer_check.detected_version = None
         mock_report.vtracer_check.download_url = "http://vtracer"
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = VTracerTracingStrategy(reason="Test VTracer")
         with pytest.raises(DependencyMissingError) as exc_info:
             strategy.execute(tmp_path / "in.png", tmp_path / "out.svg")
@@ -317,7 +326,7 @@ class TestVTracerTracingStrategy:
         mock_report = MagicMock()
         mock_report.vtracer_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = VTracerTracingStrategy(reason="Test VTracer")
         input_file = tmp_path / "in.jpg"
         input_file.write_text("fake jpeg")
@@ -331,12 +340,12 @@ class TestVTracerTracingStrategy:
         mock_report = MagicMock()
         mock_report.vtracer_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
-        
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["vtracer"], timeout=30)
-        
+
         strategy = VTracerTracingStrategy(reason="Test VTracer")
         with pytest.raises(TraceTimeoutError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -348,12 +357,12 @@ class TestVTracerTracingStrategy:
         mock_report = MagicMock()
         mock_report.vtracer_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
-        
+
         mock_run.return_value = MagicMock(returncode=1, stderr="Something went wrong")
-        
+
         strategy = VTracerTracingStrategy(reason="Test VTracer")
         with pytest.raises(TraceExecutionError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -370,24 +379,26 @@ class TestInkscapeTracingStrategy:
         mock_report = MagicMock()
         mock_report.inkscape_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
         output_file = tmp_path / "out.svg"
-        
+
         def side_effect(*args, **kwargs):
             output_file.write_text("<svg></svg>")
             return MagicMock(returncode=0)
+
         mock_run.side_effect = side_effect
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         params = TraceParams(inkscape_timeout_seconds=90)
         strategy.execute(input_file, output_file, params)
-        
+
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         kwargs = mock_run.call_args[1]
         from pathlib import Path
+
         assert Path(args[0]).stem.lower() == "inkscape"
         assert args[1] == str(input_file)
         assert "--actions" in args
@@ -403,16 +414,21 @@ class TestInkscapeTracingStrategy:
         mock_report = MagicMock()
         mock_report.inkscape_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
         output_file = tmp_path / "out.svg"
-        
+
         def side_effect(*args, **kwargs):
             output_file.write_text("<svg></svg>")
-            return MagicMock(returncode=0, stderr="Inkscape 1.2.0 warning: deprecated GTK API\ntracing...", stdout="")
+            return MagicMock(
+                returncode=0,
+                stderr="Inkscape 1.2.0 warning: deprecated GTK API\ntracing...",
+                stdout="",
+            )
+
         mock_run.side_effect = side_effect
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         # Harus tidak raise apapun
         strategy.execute(input_file, output_file, TraceParams())
@@ -426,7 +442,7 @@ class TestInkscapeTracingStrategy:
         mock_report.inkscape_check.detected_version = None
         mock_report.inkscape_check.download_url = "http://inkscape"
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         with pytest.raises(DependencyMissingError) as exc_info:
             strategy.execute(tmp_path / "in.png", tmp_path / "out.svg")
@@ -438,7 +454,7 @@ class TestInkscapeTracingStrategy:
         mock_report = MagicMock()
         mock_report.inkscape_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         input_file = tmp_path / "in.jpg"
         input_file.write_text("fake jpeg")
@@ -452,12 +468,12 @@ class TestInkscapeTracingStrategy:
         mock_report = MagicMock()
         mock_report.inkscape_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
-        
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["inkscape"], timeout=60)
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         with pytest.raises(TraceTimeoutError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -469,12 +485,12 @@ class TestInkscapeTracingStrategy:
         mock_report = MagicMock()
         mock_report.inkscape_check.passed = True
         mock_checker.return_value.check_all.return_value = mock_report
-        
+
         input_file = tmp_path / "in.png"
         input_file.write_text("fake png")
-        
+
         mock_run.return_value = MagicMock(returncode=1, stderr="Something went wrong")
-        
+
         strategy = InkscapeTracingStrategy(reason="Test Inkscape")
         with pytest.raises(TraceExecutionError) as exc_info:
             strategy.execute(input_file, tmp_path / "out.svg")
@@ -485,20 +501,19 @@ class TestInkscapeTracingStrategy:
 
 @pytest.mark.unit
 class TestFallbackTracingStrategy:
-
     def test_first_engine_fails_tries_next(self, tmp_path) -> None:
         """First engine raises DependencyMissingError -> VTracer succeeds."""
         strategy1 = MagicMock(spec=TracingStrategy)
         strategy1.execute.side_effect = DependencyMissingError("Potrace missing", binary="potrace")
-        
+
         strategy2 = MagicMock(spec=TracingStrategy)
-        
+
         fallback = FallbackTracingStrategy(order=["potrace", "vtracer"])
         fallback.strategies = [("potrace", strategy1), ("vtracer", strategy2)]
-        
+
         # Should not raise anything
         fallback.execute(tmp_path / "in.png", tmp_path / "out.svg")
-        
+
         strategy1.execute.assert_called_once()
         strategy2.execute.assert_called_once()
 
@@ -506,43 +521,46 @@ class TestFallbackTracingStrategy:
         """First engine raises TraceTimeoutError -> VTracer succeeds."""
         strategy1 = MagicMock(spec=TracingStrategy)
         strategy1.execute.side_effect = TraceTimeoutError("Potrace timed out")
-        
+
         strategy2 = MagicMock(spec=TracingStrategy)
-        
+
         fallback = FallbackTracingStrategy(order=["potrace", "vtracer"])
         fallback.strategies = [("potrace", strategy1), ("vtracer", strategy2)]
-        
+
         # Should not raise anything
         fallback.execute(tmp_path / "in.png", tmp_path / "out.svg")
-        
+
         strategy1.execute.assert_called_once()
         strategy2.execute.assert_called_once()
 
     def test_all_engines_fail_raises_trace_failed_error(self, tmp_path) -> None:
-        """All engines fail -> TraceFailedError. Assert: all 3 engine names appear in error message."""
+        """All engines fail -> TraceFailedError.
+
+        Assert: all 3 engine names appear in error message.
+        """
         strategy1 = MagicMock(spec=TracingStrategy)
         strategy1.execute.side_effect = DependencyMissingError("Potrace missing", binary="potrace")
-        
+
         strategy2 = MagicMock(spec=TracingStrategy)
         strategy2.execute.side_effect = TraceTimeoutError("VTracer timed out")
 
         strategy3 = MagicMock(spec=TracingStrategy)
         strategy3.execute.side_effect = TraceExecutionError("Inkscape crashed", return_code=1)
-        
+
         fallback = FallbackTracingStrategy(order=["potrace", "vtracer", "inkscape"])
         fallback.strategies = [
             ("potrace", strategy1),
             ("vtracer", strategy2),
             ("inkscape", strategy3),
         ]
-        
+
         with pytest.raises(TraceFailedError) as exc_info:
             fallback.execute(tmp_path / "in.png", tmp_path / "out.svg")
-            
+
         assert "[potrace]" in str(exc_info.value)
         assert "[vtracer]" in str(exc_info.value)
         assert "[inkscape]" in str(exc_info.value)
-        
+
         strategy1.execute.assert_called_once()
         strategy2.execute.assert_called_once()
         strategy3.execute.assert_called_once()
@@ -551,19 +569,14 @@ class TestFallbackTracingStrategy:
         """Override order vtracer first -> VTracer is called first."""
         strategy1 = MagicMock(spec=TracingStrategy)
         strategy2 = MagicMock(spec=TracingStrategy)
-        
+
         fallback = FallbackTracingStrategy(order=["vtracer", "potrace"])
         fallback.strategies = [
             ("vtracer", strategy1),
             ("potrace", strategy2),
         ]
-        
+
         fallback.execute(tmp_path / "in.png", tmp_path / "out.svg")
-        
+
         strategy1.execute.assert_called_once()
         strategy2.execute.assert_not_called()
-
-
-
-
-

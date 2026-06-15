@@ -47,10 +47,10 @@ import shutil
 import subprocess
 import sys
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Sequence
 
 from vector_tracer_pro.config.defaults import (
     INKSCAPE_EXECUTABLE,
@@ -329,6 +329,7 @@ class DependencyChecker:
         disk_check_path: Path | None = None,
     ) -> None:
         from vector_tracer_pro.core.path_manager import PathManager
+
         pm = PathManager()
         self._potrace_exe: str = pm.get_binary_path(potrace_executable)
         self._inkscape_exe: str = pm.get_binary_path(inkscape_executable)
@@ -342,7 +343,7 @@ class DependencyChecker:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_path_manager(cls, path_manager: object) -> "DependencyChecker":
+    def from_path_manager(cls, path_manager: object) -> DependencyChecker:
         """Create a checker pre-configured with paths from a PathManager.
 
         Uses only the public API of :class:`PathManager` — no private
@@ -359,16 +360,16 @@ class DependencyChecker:
             Checker configured to verify write access to all standard
             application directories and disk space on the output drive.
         """
-        from vector_tracer_pro.core.path_manager import PathManager  # noqa: PLC0415
+        from vector_tracer_pro.core.path_manager import PathManager
 
         pm: PathManager = path_manager  # type: ignore[assignment]
 
         # Use public API — no access to private attributes
         write_paths: list[Path] = [
-            pm.get_output_root(),   # public method
-            pm.temp_root,           # public property
-            pm.config_dir_path,     # public property
-            pm.log_dir_path,        # public property
+            pm.get_output_root(),  # public method
+            pm.temp_root,  # public property
+            pm.config_dir_path,  # public property
+            pm.log_dir_path,  # public property
         ]
         return cls(
             write_check_paths=write_paths,
@@ -427,10 +428,7 @@ class DependencyChecker:
             name="Python",
             status=CheckStatus.VERSION_TOO_OLD,
             is_critical=True,
-            message=(
-                f"Python {detected} detected; "
-                f"{_MIN_PYTHON[0]}.{_MIN_PYTHON[1]}+ required."
-            ),
+            message=(f"Python {detected} detected; {_MIN_PYTHON[0]}.{_MIN_PYTHON[1]}+ required."),
             detected_version=detected,
             minimum_version=minimum,
             download_url=_PYTHON_DOWNLOAD_URL,
@@ -637,10 +635,7 @@ class DependencyChecker:
                     f"Only {free_mb:,.0f} MB free on {drive}; "
                     f"{self._min_disk_space_mb:,.0f} MB recommended."
                 ),
-                details=(
-                    f"Drive: {drive}  "
-                    f"Free: {free_mb:,.0f} MB / Total: {total_mb:,.0f} MB"
-                ),
+                details=(f"Drive: {drive}  Free: {free_mb:,.0f} MB / Total: {total_mb:,.0f} MB"),
             )
 
         return CheckResult(
@@ -771,10 +766,7 @@ class DependencyChecker:
                 name=name,
                 status=CheckStatus.VERSION_TOO_OLD,
                 is_critical=is_critical,
-                message=(
-                    f"{name} v{detected_version} found; "
-                    f"v{minimum_version}+ required."
-                ),
+                message=(f"{name} v{detected_version} found; v{minimum_version}+ required."),
                 detected_version=detected_version,
                 minimum_version=minimum_version,
                 detected_path=resolved_path,

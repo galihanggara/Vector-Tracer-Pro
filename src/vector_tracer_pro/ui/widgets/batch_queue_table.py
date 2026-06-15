@@ -8,10 +8,10 @@ A widget displaying a table queue of active and completed vectorisation jobs.
 from __future__ import annotations
 
 import logging
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QHeaderView,
     QProgressBar,
     QPushButton,
@@ -41,14 +41,16 @@ class BatchQueueTable(QWidget):
         # Table Widget
         self.table = QTableWidget(self)
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels([
-            "#",
-            "Filename",
-            "Status",
-            "Engine",
-            "Progress",
-            "Action",
-        ])
+        self.table.setHorizontalHeaderLabels(
+            [
+                "#",
+                "Filename",
+                "Status",
+                "Engine",
+                "Progress",
+                "Action",
+            ]
+        )
 
         # Configure Header sizing
         header = self.table.horizontalHeader()

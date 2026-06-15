@@ -50,8 +50,7 @@ class TestMainWindow:
         qtbot.addWidget(window)
 
         menu_bar = window.menuBar()
-        menus = menu_bar.findChildren(object)
-        
+
         # Check menus exist by actions
         menu_titles = [action.text() for action in menu_bar.actions()]
         assert "File" in menu_titles

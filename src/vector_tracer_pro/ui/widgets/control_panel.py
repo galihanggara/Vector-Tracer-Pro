@@ -7,10 +7,11 @@ A panel containing presets, marketplace options, output folder selection, and ex
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from pathlib import Path
-from PySide6.QtCore import Signal
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -193,7 +194,3 @@ class ControlPanel(QWidget):
                 output_dir=self._output_dir,
             )
             self.add_to_batch_requested.emit(req)
-
-
-# Need Qt namespace for alignment flag
-from PySide6.QtCore import Qt

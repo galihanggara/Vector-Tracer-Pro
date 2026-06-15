@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
-from PySide6.QtCore import QThreadPool
 
 from vector_tracer_pro.core.pipeline import Pipeline
-from vector_tracer_pro.services.batch_runner import BatchJob, BatchProgress, BatchRunner
+from vector_tracer_pro.services.batch_runner import BatchRunner
 from vector_tracer_pro.services.preset_manager import PresetManager, TracingPreset
 from vector_tracer_pro.ui.controllers.main_controller import MainController
 from vector_tracer_pro.ui.main_window import MainWindow
@@ -47,7 +47,7 @@ class TestMainController:
         return controller, window, pipeline, batch_runner, preset_manager
 
     def test_file_drop_adds_to_list(self, setup_controller) -> None:
-        controller, window, _, _, _ = setup_controller
+        _, window, _, _, _ = setup_controller
 
         # Simulate dropping files
         paths = [Path("image1.png"), Path("image2.jpg")]
@@ -56,12 +56,12 @@ class TestMainController:
         assert window.file_list.count() == 2
         assert window.file_list.item(0).text() == "image1.png"
         assert window.file_list.item(1).text() == "image2.jpg"
-        
+
         # Verify first item got auto-selected
         assert window.file_list.currentRow() == 0
 
     def test_file_selection_updates_preview(self, setup_controller) -> None:
-        controller, window, _, _, _ = setup_controller
+        _, window, _, _, _ = setup_controller
 
         # Add files first
         window.drop_zone.files_dropped.emit([Path("image1.png")])
@@ -73,8 +73,10 @@ class TestMainController:
             mock_show.assert_called_once_with(Path("image1.png"))
 
     @patch("PySide6.QtCore.QThreadPool.start")
-    def test_trace_requested_starts_thread_worker(self, mock_thread_start, setup_controller) -> None:
-        controller, window, pipeline, _, _ = setup_controller
+    def test_trace_requested_starts_thread_worker(
+        self, mock_thread_start, setup_controller
+    ) -> None:
+        _, window, _, _, _ = setup_controller
 
         # Request trace
         req = TraceRequest(
@@ -88,7 +90,7 @@ class TestMainController:
         mock_thread_start.assert_called_once()
 
     def test_add_to_batch_adds_to_table_and_submits(self, setup_controller) -> None:
-        controller, window, _, batch_runner, _ = setup_controller
+        _, window, _, batch_runner, _ = setup_controller
 
         # Request add to batch
         req = TraceRequest(
@@ -109,7 +111,7 @@ class TestMainController:
         assert jobs_submitted[0].input_path == Path("in.png")
 
     def test_cancel_all_jobs(self, setup_controller) -> None:
-        controller, window, _, batch_runner, _ = setup_controller
+        _, window, _, batch_runner, _ = setup_controller
 
         # Queue a job
         req = TraceRequest(

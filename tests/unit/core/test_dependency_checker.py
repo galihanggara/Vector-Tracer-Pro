@@ -26,7 +26,6 @@ from vector_tracer_pro.core.dependency_checker import (
     _version_meets_minimum,
 )
 
-
 # ===========================================================================
 # _parse_version helper
 # ===========================================================================
@@ -81,9 +80,7 @@ class TestVersionMeetsMinimum:
 @pytest.mark.unit
 class TestCheckResult:
     def test_passed_when_ok(self) -> None:
-        r = CheckResult(
-            name="X", status=CheckStatus.OK, is_critical=True, message="ok"
-        )
+        r = CheckResult(name="X", status=CheckStatus.OK, is_critical=True, message="ok")
         assert r.passed is True
         assert r.failed is False
 
@@ -98,9 +95,7 @@ class TestCheckResult:
         assert r.failed is True
 
     def test_is_immutable(self) -> None:
-        r = CheckResult(
-            name="X", status=CheckStatus.OK, is_critical=True, message="ok"
-        )
+        r = CheckResult(name="X", status=CheckStatus.OK, is_critical=True, message="ok")
         with pytest.raises((AttributeError, TypeError)):
             r.name = "Y"  # type: ignore[misc]
 
@@ -114,7 +109,9 @@ def _ok(name: str, critical: bool = True) -> CheckResult:
     return CheckResult(name=name, status=CheckStatus.OK, is_critical=critical, message="ok")
 
 
-def _fail(name: str, status: CheckStatus = CheckStatus.MISSING, critical: bool = True) -> CheckResult:
+def _fail(
+    name: str, status: CheckStatus = CheckStatus.MISSING, critical: bool = True
+) -> CheckResult:
     return CheckResult(name=name, status=status, is_critical=critical, message="fail")
 
 
@@ -160,14 +157,10 @@ class TestValidationReport:
     def test_is_ready_when_all_critical_pass(self, all_ok_report: ValidationReport) -> None:
         assert all_ok_report.is_ready is True
 
-    def test_not_ready_when_critical_fails(
-        self, potrace_missing_report: ValidationReport
-    ) -> None:
+    def test_not_ready_when_critical_fails(self, potrace_missing_report: ValidationReport) -> None:
         assert potrace_missing_report.is_ready is False
 
-    def test_is_ready_when_only_advisory_fails(
-        self, disk_warn_report: ValidationReport
-    ) -> None:
+    def test_is_ready_when_only_advisory_fails(self, disk_warn_report: ValidationReport) -> None:
         """Low disk space is non-critical — app should still be ready."""
         assert disk_warn_report.is_ready is True
 
@@ -178,9 +171,7 @@ class TestValidationReport:
         critical_names = {c.name for c in all_ok_report.critical_checks}
         assert "Disk Space" not in critical_names
 
-    def test_warnings_contains_advisory_failures(
-        self, disk_warn_report: ValidationReport
-    ) -> None:
+    def test_warnings_contains_advisory_failures(self, disk_warn_report: ValidationReport) -> None:
         assert len(disk_warn_report.warnings) == 1
         assert disk_warn_report.warnings[0].name == "Disk Space"
 
@@ -191,16 +182,12 @@ class TestValidationReport:
         assert len(failed) == 1
         assert failed[0].name == "Potrace"
 
-    def test_summary_contains_all_check_names(
-        self, all_ok_report: ValidationReport
-    ) -> None:
+    def test_summary_contains_all_check_names(self, all_ok_report: ValidationReport) -> None:
         s = all_ok_report.summary()
         for check in all_ok_report.all_checks:
             assert check.name in s
 
-    def test_summary_contains_ready_when_all_pass(
-        self, all_ok_report: ValidationReport
-    ) -> None:
+    def test_summary_contains_ready_when_all_pass(self, all_ok_report: ValidationReport) -> None:
         assert "READY" in all_ok_report.summary()
 
     def test_summary_contains_not_ready_when_critical_fails(
@@ -222,7 +209,7 @@ class TestValidationReport:
 class TestCheckPython:
     def test_current_python_passes(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_python()  # noqa: SLF001
+        result = checker._check_python()
         # We're running on Python 3.12+ (project requirement)
         assert result.passed
 
@@ -233,14 +220,14 @@ class TestCheckPython:
         mock_vi.minor = 11
         mock_vi.micro = 0
         with patch.object(sys, "version_info", mock_vi):
-            result = checker._check_python()  # noqa: SLF001
+            result = checker._check_python()
         assert result.status == CheckStatus.VERSION_TOO_OLD
         assert result.is_critical is True
         assert result.download_url != ""
 
     def test_result_contains_detected_version(self) -> None:
         checker = DependencyChecker()
-        result = checker._check_python()  # noqa: SLF001
+        result = checker._check_python()
         assert result.detected_version is not None
         assert result.minimum_version == "3.12.0"
 
@@ -255,7 +242,7 @@ class TestCheckPotrace:
     @patch("vector_tracer_pro.core.dependency_checker.shutil.which", return_value=None)
     def test_missing_binary_returns_missing_status(self, _: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.status == CheckStatus.MISSING
         assert result.is_critical is True
         assert result.download_url != ""
@@ -270,7 +257,7 @@ class TestCheckPotrace:
     )
     def test_valid_version_returns_ok(self, _run: MagicMock, _which: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.passed
         assert result.detected_version == "1.16.0"
         assert result.detected_path == "/usr/bin/potrace"
@@ -283,11 +270,9 @@ class TestCheckPotrace:
         "vector_tracer_pro.core.dependency_checker.subprocess.run",
         return_value=MagicMock(stdout="potrace 1.14\n", stderr="", returncode=0),
     )
-    def test_old_version_returns_version_too_old(
-        self, _run: MagicMock, _which: MagicMock
-    ) -> None:
+    def test_old_version_returns_version_too_old(self, _run: MagicMock, _which: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.status == CheckStatus.VERSION_TOO_OLD
 
     @patch(
@@ -298,11 +283,9 @@ class TestCheckPotrace:
         "vector_tracer_pro.core.dependency_checker.subprocess.run",
         return_value=MagicMock(stdout="some tool\n", stderr="", returncode=0),
     )
-    def test_unparseable_version_returns_error(
-        self, _run: MagicMock, _which: MagicMock
-    ) -> None:
+    def test_unparseable_version_returns_error(self, _run: MagicMock, _which: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.status == CheckStatus.ERROR
 
     @patch(
@@ -315,7 +298,7 @@ class TestCheckPotrace:
     )
     def test_timeout_returns_error(self, _run: MagicMock, _which: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_potrace()  # noqa: SLF001
+        result = checker._check_potrace()
         assert result.status == CheckStatus.ERROR
         assert "timed out" in result.message.lower()
 
@@ -330,7 +313,7 @@ class TestCheckInkscape:
     @patch("vector_tracer_pro.core.dependency_checker.shutil.which", return_value=None)
     def test_inkscape_missing_returns_missing(self, _: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.status == CheckStatus.MISSING
 
     @patch(
@@ -348,7 +331,7 @@ class TestCheckInkscape:
     )
     def test_valid_inkscape_returns_ok(self, _run: MagicMock, _which: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.passed
         assert result.detected_version == "1.4.2"
 
@@ -361,16 +344,14 @@ class TestCheckInkscape:
         side_effect=[
             MagicMock(stdout="Inkscape 1.4.2\n", stderr="", returncode=0),
             # Headless probe returns "unrecognized option"
-            MagicMock(
-                stdout="", stderr="unrecognized option: --actions", returncode=1
-            ),
+            MagicMock(stdout="", stderr="unrecognized option: --actions", returncode=1),
         ],
     )
     def test_old_headless_api_returns_version_too_old(
         self, _run: MagicMock, _which: MagicMock
     ) -> None:
         checker = DependencyChecker()
-        result = checker._check_inkscape()  # noqa: SLF001
+        result = checker._check_inkscape()
         assert result.status == CheckStatus.VERSION_TOO_OLD
 
 
@@ -383,20 +364,20 @@ class TestCheckInkscape:
 class TestCheckWritePermissions:
     def test_writable_paths_return_ok(self, tmp_path: Path) -> None:
         checker = DependencyChecker(write_check_paths=[tmp_path])
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.passed
 
     def test_no_paths_configured_returns_ok(self) -> None:
         """Empty path list should pass (no-op)."""
         checker = DependencyChecker(write_check_paths=[])
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.passed
 
     def test_creates_missing_directory(self, tmp_path: Path) -> None:
         new_dir = tmp_path / "new_subdir"
         assert not new_dir.exists()
         checker = DependencyChecker(write_check_paths=[new_dir])
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.passed
         assert new_dir.is_dir()
 
@@ -405,7 +386,7 @@ class TestCheckWritePermissions:
         self, _: MagicMock, tmp_path: Path
     ) -> None:
         checker = DependencyChecker(write_check_paths=[tmp_path])
-        result = checker._check_write_permissions()  # noqa: SLF001
+        result = checker._check_write_permissions()
         assert result.status == CheckStatus.PERMISSION_DENIED
         assert result.is_critical is True
 
@@ -419,21 +400,21 @@ class TestCheckWritePermissions:
 class TestCheckDiskSpace:
     @patch(
         "vector_tracer_pro.core.dependency_checker.shutil.disk_usage",
-        return_value=MagicMock(free=2 * 1024 ** 3, total=10 * 1024 ** 3),
+        return_value=MagicMock(free=2 * 1024**3, total=10 * 1024**3),
     )
     def test_sufficient_disk_returns_ok(self, _: MagicMock) -> None:
         checker = DependencyChecker(min_disk_space_mb=500)
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         assert result.passed
         assert result.is_critical is False  # advisory
 
     @patch(
         "vector_tracer_pro.core.dependency_checker.shutil.disk_usage",
-        return_value=MagicMock(free=100 * 1024 ** 2, total=10 * 1024 ** 3),
+        return_value=MagicMock(free=100 * 1024**2, total=10 * 1024**3),
     )
     def test_low_disk_returns_insufficient(self, _: MagicMock) -> None:
         checker = DependencyChecker(min_disk_space_mb=500)
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         assert result.status == CheckStatus.INSUFFICIENT_DISK
         assert result.is_critical is False  # still advisory
 
@@ -443,7 +424,7 @@ class TestCheckDiskSpace:
     )
     def test_os_error_returns_error_status(self, _: MagicMock) -> None:
         checker = DependencyChecker()
-        result = checker._check_disk_space()  # noqa: SLF001
+        result = checker._check_disk_space()
         assert result.status == CheckStatus.ERROR
 
 
@@ -460,13 +441,11 @@ class TestCheckAll:
     )
     @patch(
         "vector_tracer_pro.core.dependency_checker.subprocess.run",
-        return_value=MagicMock(
-            stdout="tool 99.0.0\n", stderr="", returncode=0
-        ),
+        return_value=MagicMock(stdout="tool 99.0.0\n", stderr="", returncode=0),
     )
     @patch(
         "vector_tracer_pro.core.dependency_checker.shutil.disk_usage",
-        return_value=MagicMock(free=2 * 1024 ** 3, total=10 * 1024 ** 3),
+        return_value=MagicMock(free=2 * 1024**3, total=10 * 1024**3),
     )
     def test_check_all_returns_validation_report(
         self,
@@ -486,7 +465,7 @@ class TestCheckAll:
     )
     @patch(
         "vector_tracer_pro.core.dependency_checker.shutil.disk_usage",
-        return_value=MagicMock(free=2 * 1024 ** 3, total=10 * 1024 ** 3),
+        return_value=MagicMock(free=2 * 1024**3, total=10 * 1024**3),
     )
     def test_check_all_not_ready_when_binaries_missing(
         self, _disk: MagicMock, _which: MagicMock, tmp_path: Path
@@ -509,4 +488,4 @@ class TestFromPathManager:
         pm = PathManager(output_root=tmp_path / "out", temp_root=tmp_path / "tmp")
         checker = DependencyChecker.from_path_manager(pm)
         assert isinstance(checker, DependencyChecker)
-        assert len(checker._write_check_paths) > 0  # noqa: SLF001
+        assert len(checker._write_check_paths) > 0

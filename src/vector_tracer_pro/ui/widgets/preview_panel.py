@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtSvgWidgets import QSvgWidget
@@ -67,7 +68,7 @@ class PreviewPanel(QWidget):
         self.svg_container_layout.setContentsMargins(0, 0, 0, 0)
         self.svg_container.setMinimumSize(200, 200)
         self.svg_container.setStyleSheet("background-color: #111115; border-radius: 4px;")
-        
+
         self.placeholder_svg_label = QLabel("Waiting for tracing...", self.svg_container)
         self.placeholder_svg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder_svg_label.setStyleSheet("color: #52525b;")
@@ -106,7 +107,7 @@ class PreviewPanel(QWidget):
             self.svg_widget = QSvgWidget(self.svg_container)
             self.svg_widget.load(str(svg_path))
             self.svg_container_layout.addWidget(self.svg_widget)
-            
+
             # Simple SVG path check size or read XML for dimensions
             size = svg_path.stat().st_size
             size_kb = size / 1024.0
@@ -125,7 +126,7 @@ class PreviewPanel(QWidget):
         self.original_label.setText("")
         self.left_info.setText("No image selected")
         self.clear_svg_container()
-        
+
         self.placeholder_svg_label = QLabel("Waiting for tracing...", self.svg_container)
         self.placeholder_svg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder_svg_label.setStyleSheet("color: #52525b;")
@@ -138,7 +139,7 @@ class PreviewPanel(QWidget):
             self.svg_container_layout.removeWidget(self.svg_widget)
             self.svg_widget.deleteLater()
             self.svg_widget = None
-            
+
         # Clear any layout items
         while self.svg_container_layout.count() > 0:
             item = self.svg_container_layout.takeAt(0)

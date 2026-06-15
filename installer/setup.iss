@@ -298,7 +298,7 @@ Source: "..\dist\VectorTracerPro\*"; DestDir: "{app}"; Flags: recursesubdirs cre
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\VectorTracerPro.exe"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\VectorTracerPro.exe"; Tasks: desktopicon
+Name: "{userdesktop}\{#AppName}"; Filename: "{app}\VectorTracerPro.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a Desktop shortcut"; Flags: unchecked

@@ -1,1 +1,1 @@
-﻿"""UI dialog widgets."""
+"""UI dialog widgets."""

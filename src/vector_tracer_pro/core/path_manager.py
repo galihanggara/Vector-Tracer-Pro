@@ -54,11 +54,6 @@ import uuid
 from pathlib import Path
 from typing import Final
 
-
-def _is_bundled() -> bool:
-    """Check if the application is running from a PyInstaller bundle."""
-    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
-
 from platformdirs import (
     user_cache_dir,
     user_config_dir,
@@ -69,6 +64,12 @@ from platformdirs import (
 from vector_tracer_pro.config.defaults import APP_AUTHOR, APP_NAME
 
 logger = logging.getLogger(__name__)
+
+
+def _is_bundled() -> bool:
+    """Check if the application is running from a PyInstaller bundle."""
+    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+
 
 # Folder name used inside all platform-managed directories.
 _APP_FOLDER: Final[str] = APP_NAME  # "VectorTracerPro"
@@ -119,9 +120,7 @@ class PathManager:
             if output_root is not None
             else self._user_documents / _APP_FOLDER / "Output"
         )
-        self._temp_root: Path = (
-            temp_root if temp_root is not None else self._cache_dir / "temp"
-        )
+        self._temp_root: Path = temp_root if temp_root is not None else self._cache_dir / "temp"
 
         # Unique session ID for isolating temp folders between app instances
         self._session_id: str = f"session_{uuid.uuid4().hex[:12]}"
@@ -386,11 +385,16 @@ class PathManager:
             Number of orphaned sessions successfully deleted.
         """
         import shutil
+
         deleted = 0
         if not self._temp_root.is_dir():
             return 0
         for entry in self._temp_root.iterdir():
-            if entry.is_dir() and entry.name.startswith("session_") and entry.name != self._session_id:
+            if (
+                entry.is_dir()
+                and entry.name.startswith("session_")
+                and entry.name != self._session_id
+            ):
                 try:
                     shutil.rmtree(entry)
                     deleted += 1
@@ -492,11 +496,17 @@ class PathManager:
         """
         # If the input is already a full path, use it directly
         if Path(name).is_absolute():
+            print(f"[DEBUG] get_binary_path({name!r}) absolute: {name}")
             return name
 
         pure_name = Path(name).stem
         binary_name = f"{pure_name}.exe" if sys.platform == "win32" else pure_name
         local_path = self.get_binary_dir() / binary_name
+
+        print(f"[DEBUG] binary_dir={self.get_binary_dir()}")
+        resolved = str(local_path) if local_path.exists() else name
+        print(f"[DEBUG] get_binary_path({name!r}) resolved to: {resolved}")
+
         if local_path.exists():
             return str(local_path)
         return name
@@ -506,8 +516,4 @@ class PathManager:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"PathManager("
-            f"output_root={self._output_root!r}, "
-            f"temp_root={self._temp_root!r})"
-        )
+        return f"PathManager(output_root={self._output_root!r}, temp_root={self._temp_root!r})"

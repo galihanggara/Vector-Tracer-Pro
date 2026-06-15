@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 import uuid
 from pathlib import Path
+
 from PySide6.QtCore import QObject, QThreadPool, Signal, Slot
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox
 
 from vector_tracer_pro.core.image.preprocessor import PreprocessConfig
 from vector_tracer_pro.core.marketplace_validator import MarketplacePreset
@@ -72,7 +73,7 @@ class MainController(QObject):
         # File/Drop zone signals
         self.window.drop_zone.files_dropped.connect(self._on_files_dropped)
         self.window.drop_zone.files_selected.connect(self._on_files_dropped)
-        
+
         # File list selection changed
         self.window.file_list.currentItemChanged.connect(self._on_file_list_selection_changed)
 
@@ -109,6 +110,7 @@ class MainController(QObject):
 
         # Resolve and set default output path
         from vector_tracer_pro.core.path_manager import PathManager
+
         try:
             pm = PathManager()
             self.window.control_panel.set_output_dir(pm.get_output_svg_dir())
@@ -124,6 +126,7 @@ class MainController(QObject):
         for path in paths:
             # Check for duplicates
             from PySide6.QtCore import Qt
+
             items = self.window.file_list.findItems(str(path), Qt.MatchFlag.MatchExactly)
             if not items:
                 self.window.file_list.addItem(str(path))
@@ -133,7 +136,9 @@ class MainController(QObject):
             self.window.file_list.setCurrentRow(0)
 
     @Slot(object, object)
-    def _on_file_list_selection_changed(self, current, previous) -> None:
+    def _on_file_list_selection_changed(
+        self, current: QListWidgetItem | None, previous: QListWidgetItem | None
+    ) -> None:
         """Update preview panel and controls when another image is selected."""
         if current is None:
             self.window.preview_panel.clear()
@@ -188,7 +193,9 @@ class MainController(QObject):
     def _on_trace_finished(self, result: PipelineResult) -> None:
         """Handle successful trace completion."""
         # Re-enable inputs
-        self.window.control_panel.set_current_input_path(result.svg_path) # dummy update to trigger enabled states
+        self.window.control_panel.set_current_input_path(
+            result.svg_path
+        )  # dummy update to trigger enabled states
         self.window.control_panel.set_current_input_path(self._get_selected_path())
         self.window.control_panel.hide_progress()
 
@@ -256,7 +263,7 @@ class MainController(QObject):
                 break
 
         self.window.batch_table.update_job_status(job)
-        
+
         if job.status == "done":
             logger.info("Batch job %s completed successfully", job.job_id)
         else:
@@ -270,7 +277,7 @@ class MainController(QObject):
         """Cancel all running and pending batch jobs (cancellation scope)."""
         logger.info("Cancellation requested for job: %s. Cancelling all.", job_id)
         self.batch_runner.cancel_all()
-        
+
         # Immediately set status and update UI to avoid lag feedback
         for job in self._batch_jobs:
             if job.status in ("pending", "running"):

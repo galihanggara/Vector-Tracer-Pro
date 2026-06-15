@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import contextlib
 import tempfile
+from collections.abc import Generator
+from contextlib import AbstractContextManager as ContextManager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Generator, ContextManager
+
 import numpy as np
 from PIL import Image
 
-from vector_tracer_pro.core.image.preprocessor import ProcessedImage
 from vector_tracer_pro.core.image.classifier import ImageCategory
+from vector_tracer_pro.core.image.preprocessor import ProcessedImage
 
 
 class BitmapFormat(Enum):
@@ -75,18 +77,16 @@ class Bitmapper:
         if processed.data.size == 0 or processed.data.shape[0] == 0 or processed.data.shape[1] == 0:
             raise ValueError("Image dimensions cannot be zero.")
 
-        if fmt == BitmapFormat.PBM:
-            if processed.data.ndim != 2:
-                raise ValueError("PBM format only supports 2D binary images (shape HxW).")
+        if fmt == BitmapFormat.PBM and processed.data.ndim != 2:
+            raise ValueError("PBM format only supports 2D binary images (shape HxW).")
 
         @contextlib.contextmanager
         def _context() -> Generator[BitmapFile, None, None]:
-            tmp = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 suffix=f".{fmt.value}",
                 delete=False,
-            )
-            tmp_path = Path(tmp.name)
-            tmp.close()  # Close the handle immediately so other processes can access it on Windows
+            ) as tmp:
+                tmp_path = Path(tmp.name)
 
             try:
                 self._write_to_path(processed, tmp_path, fmt)
@@ -114,7 +114,7 @@ class Bitmapper:
             # np.packbits pads rows to multiples of 8 along axis=1 automatically
             body = np.packbits(binary, axis=1).tobytes()
 
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(header)
                 f.write(body)
         else:

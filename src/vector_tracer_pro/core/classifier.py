@@ -10,7 +10,7 @@ to use and how to pre-process the image.
 
 Classification logic
 --------------------
-The classifier operates on a downsampled 64 × 64 thumbnail for speed.
+The classifier operates on a downsampled 64 x 64 thumbnail for speed.
 Classification proceeds through the following decision tree:
 
 1. **Monochrome** — image mode is ``"1"`` (1-bit), OR fewer than 3
@@ -97,11 +97,11 @@ class ClassificationResult:
     image_type:
         The determined type of the image.
     unique_colour_count:
-        Number of distinct colours found in the 64 × 64 thumbnail.
+        Number of distinct colours found in the 64 x 64 thumbnail.
     average_saturation:
-        Mean HSV saturation across all thumbnail pixels (0.0 – 1.0).
+        Mean HSV saturation across all thumbnail pixels (0.0 - 1.0).
     confidence:
-        Confidence score (0.0 – 1.0) indicating how clearly the image
+        Confidence score (0.0 - 1.0) indicating how clearly the image
         fits the chosen category.  Informational only.
     recommended_engine:
         ``"potrace"`` or ``"inkscape"``, derived from :attr:`image_type`.
@@ -244,7 +244,7 @@ class ImageClassifier:
         Parameters
         ----------
         thumbnail:
-            Small RGB image (typically 64 × 64).
+            Small RGB image (typically 64 x 64).
 
         Returns
         -------

@@ -1,1 +1,1 @@
-﻿"""Core processing modules — pure Python, no Qt dependencies."""
+"""Core processing modules — pure Python, no Qt dependencies."""
