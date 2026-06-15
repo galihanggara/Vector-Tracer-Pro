@@ -16,6 +16,7 @@ from vector_tracer_pro.core.path_manager import PathManager
 from vector_tracer_pro.core.pipeline import Pipeline
 from vector_tracer_pro.services.batch_runner import BatchRunner
 from vector_tracer_pro.services.preset_manager import PresetManager
+from vector_tracer_pro.services.updater import UpdateChecker
 from vector_tracer_pro.ui.controllers.main_controller import MainController
 from vector_tracer_pro.ui.main_window import MainWindow
 from vector_tracer_pro.ui.styles.dark_theme import DARK_THEME_STYLE
@@ -66,6 +67,22 @@ def main() -> None:
     # 5. Show window and execute event loop
     window.show()
     logger.info("Window visible, starting Qt event loop.")
+
+    # 6. Start async update checker AFTER window is visible so startup is unblocked.
+    #    The QThread is kept alive by assigning it to a local reference that
+    #    survives until app.exec() returns (Python GC won't collect it).
+    try:
+        import importlib.metadata as _meta
+        _current_ver = _meta.version("vector-tracer-pro")
+    except Exception:
+        _current_ver = "0.0.0"
+
+    _update_checker = UpdateChecker(current_version=_current_ver)
+    _update_checker.update_available.connect(window.set_status)
+    _update_checker.finished.connect(_update_checker.deleteLater)
+    _update_checker.start()
+    logger.info("UpdateChecker started (version=%s).", _current_ver)
+
     sys.exit(app.exec())
 
 
