@@ -283,7 +283,7 @@ class TestVTracerTracingStrategy:
 
         strategy = VTracerTracingStrategy(reason="Test VTracer")
         params = TraceParams(
-            colormode="color", filter_speckle=10, color_precision=5, layer_difference=20
+            colormode="color", filter_speckle=10, color_precision=5, gradient_step=20
         )
         strategy.execute(input_file, output_file, params)
 

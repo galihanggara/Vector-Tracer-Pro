@@ -496,16 +496,16 @@ class PathManager:
         """
         # If the input is already a full path, use it directly
         if Path(name).is_absolute():
-            print(f"[DEBUG] get_binary_path({name!r}) absolute: {name}")
+            logger.debug("get_binary_path(%r) absolute: %s", name, name)
             return name
 
         pure_name = Path(name).stem
         binary_name = f"{pure_name}.exe" if sys.platform == "win32" else pure_name
         local_path = self.get_binary_dir() / binary_name
 
-        print(f"[DEBUG] binary_dir={self.get_binary_dir()}")
+        logger.debug("binary_dir=%s", self.get_binary_dir())
         resolved = str(local_path) if local_path.exists() else name
-        print(f"[DEBUG] get_binary_path({name!r}) resolved to: {resolved}")
+        logger.debug("get_binary_path(%r) resolved to: %s", name, resolved)
 
         if local_path.exists():
             return str(local_path)

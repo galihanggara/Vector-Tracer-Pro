@@ -52,9 +52,9 @@ class TraceParams:
 
     # VTracer
     colormode: str = "color"
-    filter_speckle: int = 4
-    color_precision: int = 6
-    layer_difference: int = 16
+    filter_speckle: int = 8
+    color_precision: int = 8
+    gradient_step: int = 16
     vtracer_executable: str = "vtracer"
 
     # Inkscape
@@ -386,7 +386,7 @@ class VTracerTracingStrategy(TracingStrategy):
             "--color_precision",
             str(tparams.color_precision),
             "--gradient_step",
-            str(tparams.layer_difference),
+            str(tparams.gradient_step),
         ]
 
         try:
@@ -620,7 +620,24 @@ class TraceStrategySelector:
         TracingStrategy
             Resolved concrete tracing strategy ready to be executed.
         """
-        # For now, preset logic is stubbed and we delegate to default_for
+        category_str = getattr(classification, "category", None)
+        if category_str:
+            order_map = {
+                "line_art": ["potrace", "vtracer", "inkscape"],
+                "logo": ["potrace", "vtracer", "inkscape"],
+                "flat_vector": ["vtracer", "potrace", "inkscape"],
+                "photo": ["vtracer", "inkscape", "potrace"],
+            }
+            raw_order = order_map.get(category_str, DEFAULT_FALLBACK_ORDER)
+
+            if not self._vtracer_available:
+                order = [eng for eng in raw_order if eng != "vtracer"]
+            else:
+                order = list(raw_order)
+
+            reason = f"Category based tracing for {category_str} with order {order}"
+            return FallbackTracingStrategy(order=order, reason=reason)
+
         return self.default_for(classification.image_type)
 
     def default_for(self, image_type: ImageType) -> TracingStrategy:

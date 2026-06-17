@@ -7,6 +7,7 @@ Orchestrates the vectorisation pipeline from input raster file to validated outp
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,8 @@ from vector_tracer_pro.core.marketplace_validator import (
     ValidationReport,
 )
 from vector_tracer_pro.core.trace_strategy import TraceParams, TraceStrategySelector
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -116,6 +119,7 @@ class Pipeline:
                 average_saturation=0.0,
                 confidence=1.0,
                 recommended_engine=image_type.recommended_engine,
+                category=category.value,
             )
 
             # Check vtracer availability dynamically
@@ -138,6 +142,12 @@ class Pipeline:
 
         # 7. Done
         emit("done", 100)
+
+        logger.info(
+            "Classified as: %s, engine used: %s",
+            category.value,
+            strategy.primary_engine.value,
+        )
 
         return PipelineResult(
             svg_path=output_svg_path,

@@ -152,3 +152,89 @@ class TestPipeline:
         assert result.engine_used == "inkscape"
         assert result.validation_report == mock_report
         assert result.applied_steps == ["resize", "quantize"]
+
+    @patch("vector_tracer_pro.core.pipeline.MarketplaceValidator")
+    @patch("vector_tracer_pro.core.pipeline.Bitmapper")
+    @patch("vector_tracer_pro.core.pipeline.Preprocessor")
+    @patch("vector_tracer_pro.core.pipeline.ImageClassifier")
+    @patch("vector_tracer_pro.core.pipeline.ImageLoader")
+    def test_pipeline_uses_vtracer_first_for_photo(
+        self,
+        mock_loader_cls,
+        mock_classifier_cls,
+        mock_preprocessor_cls,
+        mock_bitmapper_cls,
+        mock_validator_cls,
+        tmp_path,
+    ) -> None:
+        mock_loader = mock_loader_cls.return_value
+        mock_metadata = ImageMetadata(
+            width=100,
+            height=100,
+            dpi=(72.0, 72.0),
+            bit_depth=8,
+            original_mode="RGB",
+        )
+        fake_data = np.zeros((100, 100, 3), dtype=np.float32)
+        mock_loader.load.return_value = ImageData(data=fake_data, metadata=mock_metadata)
+
+        # Mock classifier to return PHOTO
+        mock_classifier = mock_classifier_cls.return_value
+        mock_classifier.classify.return_value = ImageCategory.PHOTO
+
+        mock_preprocessor = mock_preprocessor_cls.return_value
+        mock_processed = ProcessedImage(
+            data=fake_data,
+            metadata=mock_metadata,
+            category=ImageCategory.PHOTO,
+            config=PreprocessConfig(),
+            applied_steps=[],
+        )
+        mock_preprocessor.process.return_value = mock_processed
+
+        mock_bitmapper = mock_bitmapper_cls.return_value
+        mock_bmp_file = BitmapFile(
+            path=tmp_path / "temp.png",
+            format=BitmapFormat.PNG,
+            source_category=ImageCategory.PHOTO,
+        )
+
+        import contextlib
+        @contextlib.contextmanager
+        def mock_write(processed, fmt):
+            yield mock_bmp_file
+
+        mock_bitmapper.write.side_effect = mock_write
+
+        mock_validator = mock_validator_cls.return_value
+        mock_validator.validate.return_value = ValidationReport(
+            preset="adobe_stock", passed=True, errors=[], warnings=[]
+        )
+
+        # Patch VTracerTracingStrategy and InkscapeTracingStrategy to see which runs first
+        vtracer_path = "vector_tracer_pro.core.trace_strategy.VTracerTracingStrategy.execute"
+        inkscape_path = "vector_tracer_pro.core.trace_strategy.InkscapeTracingStrategy.execute"
+        with patch(vtracer_path) as mock_vtracer_exec, \
+             patch(inkscape_path) as mock_inkscape_exec:
+
+            pipeline = Pipeline()
+            input_file = tmp_path / "input.png"
+            input_file.write_text("fake png")
+
+            # We mock dependency checks to make sure vtracer is available
+            dep_path = "vector_tracer_pro.core.dependency_checker.DependencyChecker.check_all"
+            with patch(dep_path) as mock_dep:
+                mock_report = MagicMock()
+                mock_report.vtracer_check.passed = True
+                mock_dep.return_value = mock_report
+
+                pipeline.run(
+                    input_path=input_file,
+                    output_dir=tmp_path,
+                    preset=MarketplacePreset.ADOBE_STOCK,
+                )
+
+            # Assert VTracer was executed first
+            mock_vtracer_exec.assert_called_once()
+            # Inkscape was not called because VTracer execution succeeded
+            mock_inkscape_exec.assert_not_called()

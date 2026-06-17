@@ -112,6 +112,7 @@ class ClassificationResult:
     average_saturation: float
     confidence: float
     recommended_engine: Literal["potrace", "inkscape"]
+    category: str | None = None
 
     def __str__(self) -> str:
         return (

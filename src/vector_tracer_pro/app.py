@@ -79,7 +79,19 @@ def main() -> None:
         _current_ver = "0.0.0"
 
     _update_checker = UpdateChecker(current_version=_current_ver)
-    _update_checker.update_available.connect(window.set_status)
+
+    def on_update_available(message: str) -> None:
+        try:
+            parts = message.split("Update tersedia: ")
+            if len(parts) > 1:
+                version_tag = parts[1].strip().split()[0]
+                window.set_status(f"Update tersedia: {version_tag}")
+            else:
+                window.set_status(message)
+        except Exception:
+            window.set_status(message)
+
+    _update_checker.update_available.connect(on_update_available)
     _update_checker.finished.connect(_update_checker.deleteLater)
     _update_checker.start()
     logger.info("UpdateChecker started (version=%s).", _current_ver)
